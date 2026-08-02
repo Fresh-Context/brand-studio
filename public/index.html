@@ -100,6 +100,22 @@ dialog::backdrop{background:rgba(56,24,0,.4)}
 .detail .info h3{font-family:var(--serif);font-size:20px;margin:0 0 4px}
 .detail dl{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:12.5px;margin:14px 0}
 .detail dt{color:var(--ink-faint)}
+.detail #fbHist{margin-top:10px}
+/* result viewer (lightbox) — reuses #detail/#detailBody, toggled via .viewer-mode */
+dialog#detail.viewer-mode{max-width:min(1400px,96vw);width:96vw;height:92vh;background:#0b0906;padding:0;border:none}
+dialog#detail.viewer-mode::backdrop{background:rgba(10,8,4,.75)}
+dialog#detail.viewer-mode #detailBody{display:block;height:100%}
+.viewer{display:flex;flex-direction:column;height:100%;color:#f5efe6}
+.viewer-bar{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;flex:0 0 auto}
+.viewer-actions{display:flex;gap:8px;align-items:center}
+.viewer-actions a,.viewer-actions button{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.12);color:#f5efe6;border:none;border-radius:8px;padding:6px 12px;font-size:13px;cursor:pointer;text-decoration:none;font-family:inherit}
+.viewer-actions a:hover,.viewer-actions button:hover{background:rgba(255,255,255,.22)}
+.viewer-stage{position:relative;flex:1;display:flex;align-items:center;justify-content:center;min-height:0;padding:0 44px 16px}
+.viewer-stage img{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px}
+.viewer-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.14);border:none;color:#f5efe6;border-radius:999px;width:38px;height:38px;font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.viewer-nav:hover{background:rgba(255,255,255,.26)}
+.viewer-nav.prev{left:6px}
+.viewer-nav.next{right:6px}
 .tag{display:inline-block;background:var(--paper-2);border:1px solid var(--rule);border-radius:999px;padding:2px 9px;font-size:11px;margin:2px 3px 0 0}
 .closex{position:absolute;top:10px;right:12px;background:none;border:0;cursor:pointer;color:var(--ink-faint);display:flex}
 
@@ -107,8 +123,16 @@ dialog::backdrop{background:rgba(56,24,0,.4)}
 .genform{display:grid;gap:12px;max-width:640px;margin-bottom:22px}
 .genform label{font-size:12px;color:var(--ink-faint);display:block;margin-bottom:4px}
 .row{display:flex;gap:12px}.row>div{flex:1}
-#genResults{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
-#genResults img{width:100%;border:1px solid var(--rule);border-radius:9px}
+#genResults{display:flex;flex-direction:column;gap:16px}
+.genset{border-top:1px solid var(--rule-soft);padding-top:12px}
+.genset:first-child{border-top:none;padding-top:0}
+.genthumbs{display:flex;flex-wrap:wrap;gap:10px}
+.genthumb{position:relative;width:140px;height:140px;border-radius:9px;overflow:hidden;border:1px solid var(--rule)}
+.genthumb img{width:100%;height:100%;object-fit:cover;cursor:pointer;display:block}
+.genthumb .gendl{position:absolute;right:5px;bottom:5px;background:rgba(0,0,0,.55);color:#fff;border-radius:6px;padding:3px 8px;font-size:13px;text-decoration:none;line-height:1.3}
+.genthumb .gendl:hover{background:rgba(0,0,0,.75)}
+.iterate-note{display:flex;align-items:center;gap:8px;margin:-2px 0 2px}
+.iterate-note img{width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid var(--rule)}
 
 /* brand / voice */
 .brand-doc{background:var(--card);border:1px solid var(--rule-soft);border-radius:11px;margin-bottom:12px;overflow:hidden}
@@ -215,6 +239,7 @@ dialog::backdrop{background:rgba(56,24,0,.4)}
         <div><label>Shot type</label><select id="genTool" style="width:100%"></select></div>
         <div><label>Prompt — the subject; the shot type's brand register is prepended automatically</label>
           <textarea id="genPrompt" rows="4" style="width:100%" placeholder="e.g. a mature organic network of stippled nodes, brown ink on cream"></textarea></div>
+        <div class="muted iterate-note" id="genIterateNote" style="display:none"><img id="genIteratePreview" alt=""><span class="txt">Using this image as input for the next generation.</span><button class="btn ghost" id="genIterateClear" style="padding:3px 9px">Remove</button></div>
         <div class="row">
           <div><label>Aspect</label><select id="genAspect" style="width:100%"><option>1:1</option><option>16:9</option><option>9:16</option><option>4:3</option><option>3:4</option></select></div>
           <div><label>Variants</label><select id="genVariants" style="width:100%"><option>1</option><option selected>2</option><option>3</option><option>4</option></select></div>
@@ -340,7 +365,72 @@ async function api(path,opts={}){
   if(!res.ok) throw new Error((await res.json().catch(()=>({error:res.statusText}))).error||res.status);
   return res.json();
 }
+async function apiUpload(path,formData){
+  const res=await fetch('/api'+path,{method:'POST',headers:headers(),body:formData});
+  if(!res.ok) throw new Error((await res.json().catch(()=>({error:res.statusText}))).error||res.status);
+  return res.json();
+}
 const fileUrl=(sp)=>'/files/'+sp.split('/').map(encodeURIComponent).join('/');
+
+// ── result viewer (lightbox for a generation's results; also used for
+// "download all" + "use as input") ──
+function resultFilename(base,url,index){
+  const clean=url.split(/[?#]/)[0];
+  const ext=clean.includes('.')?clean.split('.').pop():'png';
+  const slug=(base||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')||'studio';
+  return `${slug}-${index+1}.${ext}`;
+}
+let viewer=null; // {items:[url], index, filenameBase, onUseAsInput}
+function renderViewer(){
+  const {items,index,filenameBase,onUseAsInput}=viewer;
+  const url=items[index];
+  const hasMultiple=items.length>1;
+  $('#detailBody').innerHTML=`<div class="viewer">
+    <div class="viewer-bar">
+      <span class="muted">${hasMultiple?`${index+1} / ${items.length}`:''}</span>
+      <div class="viewer-actions">
+        <a href="${url}" download="${resultFilename(filenameBase,url,index)}">Download</a>
+        ${onUseAsInput?'<button id="viewerUseAsInput">Use as input</button>':''}
+      </div>
+    </div>
+    <div class="viewer-stage">
+      ${hasMultiple?'<button class="viewer-nav prev" id="viewerPrev">‹</button>':''}
+      <img src="${url}" alt="">
+      ${hasMultiple?'<button class="viewer-nav next" id="viewerNext">›</button>':''}
+    </div>
+  </div>`;
+  if(hasMultiple){
+    $('#viewerPrev').onclick=(e)=>{e.stopPropagation();viewer.index=(viewer.index-1+items.length)%items.length;renderViewer();};
+    $('#viewerNext').onclick=(e)=>{e.stopPropagation();viewer.index=(viewer.index+1)%items.length;renderViewer();};
+  }
+  if(onUseAsInput){
+    $('#viewerUseAsInput').onclick=(e)=>{e.stopPropagation();onUseAsInput(url);};
+  }
+}
+function openResultViewer(items,index,filenameBase,{onUseAsInput}={}){
+  viewer={items,index,filenameBase,onUseAsInput};
+  $('#detail').classList.add('viewer-mode');
+  renderViewer();
+  $('#detail').showModal();
+}
+$('#detail').addEventListener('click',(e)=>{ if(e.target===$('#detail')) $('#detail').close(); });
+$('#detail').addEventListener('close',()=>{ $('#detail').classList.remove('viewer-mode'); viewer=null; });
+document.addEventListener('keydown',(e)=>{
+  if(!viewer||!$('#detail').open) return;
+  if(e.key==='ArrowLeft'&&viewer.items.length>1){viewer.index=(viewer.index-1+viewer.items.length)%viewer.items.length;renderViewer();}
+  else if(e.key==='ArrowRight'&&viewer.items.length>1){viewer.index=(viewer.index+1)%viewer.items.length;renderViewer();}
+});
+async function downloadJobZip(jobId){
+  const res=await fetch(`/api/jobs/${jobId}/download`,{headers:headers()});
+  if(!res.ok) throw new Error((await res.json().catch(()=>({error:res.statusText}))).error||res.status);
+  const blob=await res.blob();
+  const cd=res.headers.get('Content-Disposition')||'';
+  const m=/filename="?([^";]+)"?/.exec(cd);
+  const filename=m?m[1]:'download.zip';
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
 
 // ── nav ──
 const NAV=[['identity','Identity','house'],['gallery','Gallery','images'],['generate','Generate','sparkle'],['feedback','Feedback','chat'],['brand','Voice & Tone','textaa'],['system','System','layers']];
@@ -552,14 +642,83 @@ async function loadTools(){
   try{const tools=await api('/tools?kind=image'); $('#genTool').innerHTML=tools.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');}
   catch(e){ $('#genStatus').textContent='Error loading tools: '+e.message; }
 }
+
+// Iteration: "use this result as input" attaches a real File to the next
+// submission (fetched from the same-origin result URL — see useResultAsInput).
+let pendingUserImage=null;
+let pendingUserImagePreviewUrl=null;
+function selectUserImage(file){
+  pendingUserImage=file;
+  if(pendingUserImagePreviewUrl) URL.revokeObjectURL(pendingUserImagePreviewUrl);
+  pendingUserImagePreviewUrl=URL.createObjectURL(file);
+  $('#genIteratePreview').src=pendingUserImagePreviewUrl;
+  $('#genIterateNote').style.display='flex';
+}
+function clearUserImage(){
+  pendingUserImage=null;
+  if(pendingUserImagePreviewUrl){ URL.revokeObjectURL(pendingUserImagePreviewUrl); pendingUserImagePreviewUrl=null; }
+  $('#genIterateNote').style.display='none';
+}
+$('#genIterateClear').onclick=clearUserImage;
+async function useResultAsInput(url,sourcePrompt){
+  $('#detail').close();
+  try{
+    const blob=await (await fetch(url)).blob();
+    selectUserImage(new File([blob],'iterate.png',{type:blob.type||'image/png'}));
+    if(sourcePrompt) $('#genPrompt').value=sourcePrompt;
+    document.querySelector('#nav [data-tab="generate"]').click();
+    window.scrollTo({top:0,behavior:'smooth'});
+  }catch(e){ $('#genStatus').textContent='Could not load image for iteration: '+e.message; }
+}
+
+// One result-set per generation: a "Download all" link (when >1 variant) and
+// a thumbnail row — click a thumbnail for the full-size viewer (prev/next +
+// download + use-as-input), or use its own download link directly.
+const genJobs={};
+function genResultsHtml(job,toolName){
+  const urls=(job.result_paths||[]).map(fileUrl);
+  const dlAll=urls.length>1?`<button class="btn ghost gen-dlall" data-job="${job.id}" style="margin-bottom:8px">Download all (${urls.length})</button>`:'';
+  const thumbs=urls.map((url,i)=>`<div class="genthumb"><img loading="lazy" class="gen-open" data-job="${job.id}" data-index="${i}" src="${url}" alt="">
+    <a class="gendl" href="${url}" download="${resultFilename(toolName,url,i)}" title="Download">⭳</a></div>`).join('');
+  return `<div class="genset" data-job="${job.id}">${dlAll}<div class="genthumbs">${thumbs}</div></div>`;
+}
+function wireGenResultSet(jobId){
+  $('#genResults').querySelectorAll(`.gen-open[data-job="${jobId}"]`).forEach(img=>{
+    img.onclick=()=>{
+      const g=genJobs[jobId];
+      openResultViewer(g.urls,+img.dataset.index,g.toolName,{onUseAsInput:(url)=>useResultAsInput(url,g.prompt)});
+    };
+  });
+  const btn=$('#genResults').querySelector(`.gen-dlall[data-job="${jobId}"]`);
+  if(btn) btn.onclick=async()=>{
+    btn.disabled=true;
+    try{ await downloadJobZip(jobId); }
+    catch(e){ $('#genStatus').textContent='Download failed: '+e.message; }
+    finally{ btn.disabled=false; }
+  };
+}
+
 $('#genBtn').onclick=async()=>{
   const tool_id=$('#genTool').value,prompt=$('#genPrompt').value.trim();
   if(!prompt){$('#genStatus').textContent='Enter a prompt.';return;}
   $('#genBtn').disabled=true; $('#genStatus').innerHTML='<span class="spinner"></span> generating (20–60s)…';
+  const toolName=$('#genTool').selectedOptions[0]?.textContent||'';
   try{
-    const job=await api('/generate',{method:'POST',body:JSON.stringify({tool_id,prompt,aspect:$('#genAspect').value,variants:+$('#genVariants').value})});
+    let job;
+    if(pendingUserImage){
+      const fd=new FormData();
+      fd.append('tool_id',tool_id); fd.append('prompt',prompt);
+      fd.append('aspect',$('#genAspect').value); fd.append('variants',String(+$('#genVariants').value));
+      fd.append('user_image',pendingUserImage,pendingUserImage.name||'input.png');
+      job=await apiUpload('/generate',fd);
+    }else{
+      job=await api('/generate',{method:'POST',body:JSON.stringify({tool_id,prompt,aspect:$('#genAspect').value,variants:+$('#genVariants').value})});
+    }
     $('#genStatus').textContent='Done — added to the gallery.';
-    $('#genResults').innerHTML=(job.result_paths||[]).map(rp=>`<img src="${fileUrl(rp)}">`).join('')+$('#genResults').innerHTML;
+    genJobs[job.id]={urls:(job.result_paths||[]).map(fileUrl),toolName,prompt:job.prompt};
+    $('#genResults').insertAdjacentHTML('afterbegin',genResultsHtml(job,toolName));
+    wireGenResultSet(job.id);
+    clearUserImage();
   }catch(e){ $('#genStatus').textContent='Error: '+e.message; }
   finally{ $('#genBtn').disabled=false; }
 };

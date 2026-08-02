@@ -9,7 +9,7 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>__REPO__/apps/studio/start.sh</string>
+        <string>__REPO__/start.sh</string>
     </array>
 
     <key>RunAtLoad</key>
@@ -19,13 +19,13 @@
     <true/>
 
     <key>StandardOutPath</key>
-    <string>__REPO__/apps/studio/logs/stdout.log</string>
+        <string>__REPO__/logs/stdout.log</string>
 
     <key>StandardErrorPath</key>
-    <string>__REPO__/apps/studio/logs/stderr.log</string>
+        <string>__REPO__/logs/stderr.log</string>
 
     <key>WorkingDirectory</key>
-    <string>__REPO__/apps/studio</string>
+        <string>__REPO__</string>
 
     <key>EnvironmentVariables</key>
     <dict>

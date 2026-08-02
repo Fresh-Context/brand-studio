@@ -1,5 +1,9 @@
 node_modules/
 .env
+# Local-dev asset dirs (data/generated, data/references, data/library) and
+# launchd/manual-run logs — never repo content, see src/lib/storage.js.
+data/
+logs/
 # Generated from brand-marketing/brand-guideline/whoweare.html by
 # scripts/build-identity-embed.js (runs on npm run build / predev / prestart).
 public/identity-embed.html
