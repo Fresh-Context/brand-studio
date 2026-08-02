@@ -1,10 +1,6 @@
-node_modules
-dist
+node_modules/
 .env
-.env.local
-*.local
-.DS_Store
-.claude
-*.tsbuildinfo
-.vercel
-supabase/.temp
+# Generated from brand-marketing/brand-guideline/whoweare.html by
+# scripts/build-identity-embed.js (runs on npm run build / predev / prestart).
+public/identity-embed.html
+public/identity-embed.js

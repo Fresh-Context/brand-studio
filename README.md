@@ -1,66 +1,38 @@
-# Fresh Context Brand Studio
+# Fresh Context Studio
 
-AI-powered brand asset generation studio. Create on-brand images and videos using configurable shot types with reference images, system prompts, and style guides.
+The brand operating surface — asset gallery + search + generation, API-first, reached two ways (human UI + Claude via MCP) over the **same** endpoints. Full spec: [`STUDIO-PRD.md`](../../STUDIO-PRD.md) at the repo root.
 
-## Architecture
+Standalone app in the monorepo (its own package + deploy). Depends only on Supabase (`contextListener`) + OpenAI + the image files — **no vault/JSONL deps**, so it deploys cleanly (the `local-server` monolith cannot). Deploys to `studio.freshcontext.ai` on Coolify.
 
-```
-┌─────────────────┐     ┌──────────────┐     ┌─────────────┐
-│  React Frontend │────▶│   Supabase   │────▶│    n8n      │
-│  (Vite + TW)    │     │  Auth / DB   │     │  Workflows  │
-│  Hosted: Vercel │     │  Edge Fns    │     │  OpenAI/Veo │
-└─────────────────┘     └──────────────┘     └─────────────┘
-```
-
-## Quick Start
+## Run locally
 
 ```bash
-# 1. Install dependencies
+cd apps/studio
+cp .env.example .env      # fill in SUPABASE_*, OPENAI_API_KEY, a STUDIO_BEARER_TOKEN
 npm install
-
-# 2. Set up environment
-cp .env.example .env
-# Fill in your Supabase URL + anon key and n8n webhook URL
-
-# 3. Run the SQL migration
-# Paste supabase/migrations/001_initial_schema.sql into Supabase SQL Editor
-
-# 4. Enable Google OAuth in Supabase
-# Dashboard → Authentication → Providers → Google → Enable
-
-# 5. Start dev server
-npm run dev
+npm run dev               # http://localhost:3440 (predev builds the identity embed)
 ```
 
-## Supabase Setup
+`npm run build` / `predev` / `prestart` run `scripts/build-identity-embed.js`, which turns `brand-marketing/brand-guideline/whoweare.html` into the natively-embedded, spike-stripped identity front door (`public/identity-embed.*`, git-ignored).
 
-1. Create a new project at [supabase.com](https://supabase.com)
-2. Run the migration SQL in the SQL Editor
-3. Create a storage bucket called `generation-assets` (set to public)
-4. Enable Google OAuth provider under Authentication → Providers
-5. Add your dev URL (`http://localhost:5173`) to the redirect allow list
+Runs alongside `local-server` (:3430) during the transition. Storage defaults point at the existing `local-server/studio/{generated,references}` + `brand-marketing/` so nothing is copied.
 
-## n8n Integration
+## Surface
 
-The app calls two n8n webhook endpoints:
+- `GET /healthz` — liveness (unauthenticated)
+- `GET /api/status` — counts + config (bearer)
+- `GET /api/tools` · `GET/POST/PUT/DELETE` — tool defs (shot types, motion presets)
+- `GET /api/assets?q=&form=&tag=&kind=&source=` — gallery browse/search (semantic `q` lands in M2)
+- `GET /api/jobs` · `GET /api/jobs/:id` · `POST /api/jobs/:id/star`
+- `POST /api/generate` — image generation → job
+- `POST /api/generate-motion` — HTML motion (M3)
+- `/files/{generated,references,library}/*` — asset files
 
-- **Image generation** — `POST /webhook/56d4f2e5-...` (synchronous, returns base64)
-- **Video generation** — `POST /webhook/video-generate-v2` (async, uses callback)
+## Auth
 
-Import the workflow JSON files into your n8n instance. Update `VITE_N8N_WEBHOOK_URL` in `.env`.
+- `/api/*` → **bearer token** (`STUDIO_BEARER_TOKEN`) — the machine/MCP door.
+- Browser UI → **oauth2-proxy** (Google, `@freshcontext.ai`) at the Coolify/Traefik layer (prod only).
 
-## Deployment (Vercel)
+## Data model
 
-```bash
-# Connect to GitHub and deploy
-npx vercel --prod
-```
-
-Add the production URL to Supabase Auth redirect allow list.
-
-## Development with Claude Code
-
-```bash
-cd ~/Fresh\ Context/brand-studio
-claude  # opens Claude Code in this project
-```
+`studio_tools` → `studio_jobs` → `studio_assets` (+ `studio_taxonomy`, `studio_asset_embeddings`) in Supabase. See the migrations under `local-server/supabase/migrations/2026071*_studio_*.sql`.

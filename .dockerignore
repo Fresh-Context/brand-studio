@@ -1,0 +1,6 @@
+node_modules
+.env
+.env.*
+!.env.example
+public/identity-embed.html
+public/identity-embed.js

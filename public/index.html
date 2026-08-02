@@ -1,0 +1,620 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fresh Context Studio</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<style>
+/* ─────────────────────────────────────────────────────────────────────────
+   Fresh Context — APPLICATION visual language (v1).
+   The functional-UI register: same brand tokens as the editorial/scientific-
+   illustration register, expressed for utility apps. Left rail + Phosphor
+   iconography + Merriweather-Sans chrome + Crimson-Pro display. This file is the
+   reference exhibition; the spec is brand-guidelines/05 — Application UI.md.
+   Fonts (Crimson Pro / Merriweather Sans) are provided globally by the injected
+   identity-embed <style> (@font-face kept global).
+   ───────────────────────────────────────────────────────────────────────── */
+:root{
+  --ink:#381800; --ink-soft:#5b4636; --ink-faint:#8a7763;
+  --paper:#f4efe4; --paper-2:#efe8d9; --card:#fbf8f0; --rule:#d8cfbc; --rule-soft:#e3dccb;
+  --accent:#F89420; --accent-deep:#d97a12; --accent-soft:#fbe9d2;
+  --cta:#6aa84f;
+  --serif:'Crimson Pro',Georgia,serif; --sans:'Merriweather Sans',system-ui,-apple-system,sans-serif;
+  --rail:236px; --shadow:0 1px 2px rgba(56,24,0,.06),0 2px 8px rgba(56,24,0,.05);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.ic{display:inline-block;vertical-align:-.18em;flex:none}
+button{font-family:inherit}
+a{color:var(--accent-deep);text-decoration:none}
+
+/* ── App frame ── */
+.app{min-height:100vh}
+.rail{position:fixed;top:0;left:0;width:var(--rail);height:100vh;background:var(--card);border-right:1px solid var(--rule);display:flex;flex-direction:column;padding:20px 14px;z-index:20}
+.brand{display:flex;align-items:center;gap:10px;padding:4px 8px 20px;border-bottom:1px solid var(--rule-soft);margin-bottom:14px}
+.brand .mark{width:26px;height:26px;border-radius:50%;background:radial-gradient(circle at 50% 45%,#fde6c8 0 32%,var(--accent) 33% 60%,var(--accent-deep) 61% 100%);flex:none;box-shadow:inset 0 0 0 1.5px var(--accent-deep)}
+.brand .wordmark{font-family:var(--serif);font-size:16px;font-weight:600;letter-spacing:-.01em;line-height:1.1}
+.brand .wordmark b{display:block;font-family:var(--sans);font-weight:700;font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--accent-deep)}
+.nav{display:flex;flex-direction:column;gap:2px;flex:1}
+.nav button{display:flex;align-items:center;gap:11px;width:100%;text-align:left;background:none;border:0;border-radius:9px;padding:9px 11px;font-size:13.5px;font-weight:600;color:var(--ink-soft);cursor:pointer;transition:background .1s,color .1s}
+.nav button:hover{background:var(--paper-2);color:var(--ink)}
+.nav button.active{background:var(--accent-soft);color:var(--ink)}
+.nav button.active .ic{color:var(--accent-deep)}
+.nav .ic{color:var(--ink-faint)}
+.rail-foot{border-top:1px solid var(--rule-soft);padding-top:12px;display:flex;flex-direction:column;gap:8px}
+.rail-foot .mcp{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--ink-faint);line-height:1.35}
+.rail-foot .mcp .dot{width:7px;height:7px;border-radius:50%;background:var(--cta);flex:none;box-shadow:0 0 0 3px rgba(106,168,79,.16)}
+.rail-foot .link{background:none;border:0;color:var(--ink-faint);font-size:11px;cursor:pointer;text-decoration:underline;text-align:left;padding:0}
+
+.content{margin-left:var(--rail);min-height:100vh}
+.view{display:none}
+.view.active{display:block}
+.view.pad{padding:30px 34px;max-width:1180px}
+
+/* ── Functional components (the app language) ── */
+.page-head{margin-bottom:20px}
+.page-head h2{font-family:var(--serif);font-size:26px;font-weight:600;letter-spacing:-.02em;margin:0 0 4px}
+.page-head p{color:var(--ink-soft);margin:0;font-size:13.5px}
+.field{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--rule);border-radius:10px;padding:0 12px}
+.field .ic{color:var(--ink-faint)}
+.field input{flex:1;border:0;background:none;padding:11px 0;font:inherit;color:var(--ink);outline:none}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--rule);border-radius:9px;padding:10px 12px;outline:none}
+input:focus,select:focus,textarea:focus,.field:focus-within{border-color:var(--accent)}
+.controls{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.controls .field{flex:1;min-width:240px}
+.btn{display:inline-flex;align-items:center;gap:7px;background:var(--accent);color:#fff;border:0;border-radius:9px;padding:10px 16px;font-size:13.5px;font-weight:700;cursor:pointer;transition:background .1s}
+.btn:hover{background:var(--accent-deep)}
+.btn:disabled{opacity:.5;cursor:default}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--rule)}
+.btn.ghost:hover{background:var(--paper-2)}
+.muted{color:var(--ink-faint);font-size:12.5px}
+.section-head{font-family:var(--serif);font-size:19px;font-weight:600;margin:26px 0 12px;border-bottom:1px solid var(--rule);padding-bottom:6px}
+
+/* gallery grid */
+#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(184px,1fr));gap:15px}
+.cardwrap{position:relative}
+.card{background:var(--card);border:1px solid var(--rule-soft);border-radius:11px;overflow:hidden;cursor:pointer;box-shadow:var(--shadow);transition:transform .08s,border-color .08s}
+.card:hover{transform:translateY(-2px);border-color:var(--accent)}
+.card .thumb{aspect-ratio:1/1;background:var(--paper);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.card .thumb img{width:100%;height:100%;object-fit:contain}
+.card .meta{padding:8px 10px;border-top:1px solid var(--rule-soft)}
+.card .meta .form{font-size:10px;text-transform:uppercase;letter-spacing:.55px;color:var(--accent-deep);font-weight:700}
+.card .meta .cap{font-size:12px;color:var(--ink-soft);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:2px}
+.card .sim{float:right;font-size:10px;color:var(--ink-faint)}
+.star{position:absolute;top:6px;left:6px;display:flex;background:rgba(251,248,240,.92);border:1px solid var(--rule);border-radius:7px;padding:3px;cursor:pointer;color:var(--ink-faint)}
+.star.on{color:var(--accent)}
+.hidbadge{position:absolute;top:6px;right:6px;z-index:2;display:flex;align-items:center;gap:3px;background:rgba(56,24,0,.82);color:#fbe9d2;border-radius:7px;padding:3px 7px 3px 5px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.card.is-hidden .thumb img{opacity:.55;filter:grayscale(.3)}
+
+/* detail dialog */
+dialog{border:1px solid var(--rule);border-radius:14px;padding:0;max-width:min(860px,92vw);background:var(--card);color:var(--ink)}
+dialog::backdrop{background:rgba(56,24,0,.4)}
+.detail{display:grid;grid-template-columns:1fr 1fr}
+.detail .img{background:var(--paper);display:flex;align-items:center;justify-content:center;padding:18px}
+.detail .img img{max-width:100%;max-height:72vh;object-fit:contain}
+.detail .info{padding:22px 24px;max-height:72vh;overflow:auto}
+.detail .info h3{font-family:var(--serif);font-size:20px;margin:0 0 4px}
+.detail dl{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:12.5px;margin:14px 0}
+.detail dt{color:var(--ink-faint)}
+.tag{display:inline-block;background:var(--paper-2);border:1px solid var(--rule);border-radius:999px;padding:2px 9px;font-size:11px;margin:2px 3px 0 0}
+.closex{position:absolute;top:10px;right:12px;background:none;border:0;cursor:pointer;color:var(--ink-faint);display:flex}
+
+/* generate */
+.genform{display:grid;gap:12px;max-width:640px;margin-bottom:22px}
+.genform label{font-size:12px;color:var(--ink-faint);display:block;margin-bottom:4px}
+.row{display:flex;gap:12px}.row>div{flex:1}
+#genResults{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+#genResults img{width:100%;border:1px solid var(--rule);border-radius:9px}
+
+/* brand / voice */
+.brand-doc{background:var(--card);border:1px solid var(--rule-soft);border-radius:11px;margin-bottom:12px;overflow:hidden}
+.brand-doc summary{padding:14px 18px;font-family:var(--serif);font-size:17px;font-weight:600;cursor:pointer;list-style:none}
+.brand-doc summary::-webkit-details-marker{display:none}
+.brand-doc .body{padding:2px 22px 18px;border-top:1px solid var(--rule-soft);font-size:14px;line-height:1.6}
+.brand-doc .body img{max-width:100%}
+.brand-doc .body h1,.brand-doc .body h2,.brand-doc .body h3{font-family:var(--serif)}
+
+/* system tab — the architecture exhibit */
+.sys-note{background:var(--accent-soft);border:1px solid var(--accent);border-radius:11px;padding:14px 18px;margin-bottom:18px;display:flex;gap:13px;align-items:flex-start}
+.sys-note .ic{color:var(--accent-deep);margin-top:1px;flex:none}
+.sys-note a{font-weight:700}
+.sys-live{background:var(--card);border:1px solid var(--rule);border-radius:11px;padding:12px 16px;margin-bottom:24px;font-size:13px;color:var(--ink-soft);display:flex;align-items:center;gap:10px;line-height:1.5}
+.sys-live .dot{width:8px;height:8px;border-radius:50%;background:var(--cta);flex:none;box-shadow:0 0 0 3px rgba(106,168,79,.16)}
+.sys-live b{color:var(--ink)}
+.lanes{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.lane{background:var(--card);border:1px solid var(--rule-soft);border-radius:11px;padding:15px 16px 14px;box-shadow:var(--shadow)}
+.lane .ttl{font-family:var(--serif);font-size:17px;font-weight:600;margin:0 0 1px}
+.lane .mech{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--accent-deep);font-weight:700;margin-bottom:10px}
+.lane dl{display:grid;grid-template-columns:auto 1fr;gap:5px 10px;margin:0;font-size:12.5px}
+.lane dt{color:var(--ink-faint)}
+.lane dd{margin:0}
+.lane code,.sys-table code,.sys-prose code,.flow code{background:var(--paper-2);border-radius:4px;padding:0 4px;font-size:11.5px}
+.flow{display:flex;align-items:stretch;gap:0;flex-wrap:wrap;margin:6px 0 4px}
+.flow .step{background:var(--card);border:1px solid var(--rule);border-radius:9px;padding:8px 12px;display:flex;flex-direction:column;justify-content:center;min-width:118px}
+.flow .step b{font-size:12.5px}
+.flow .step span{color:var(--ink-faint);font-size:11px}
+.flow .gate{border-color:var(--accent);background:var(--accent-soft)}
+.flow .arw{display:flex;align-items:center;color:var(--ink-faint);padding:0 7px;font-weight:700}
+.sys-table{width:100%;border-collapse:collapse;font-size:12.5px;margin:6px 0 4px}
+.sys-table th,.sys-table td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+.sys-table th{color:var(--ink-faint);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+.pill{display:inline-block;border-radius:999px;padding:1px 8px;font-size:10.5px;font-weight:700;white-space:nowrap;margin:1px 2px 1px 0}
+.pill.a{background:#e7f0df;color:#3d6b28}
+.pill.b{background:var(--accent-soft);color:var(--accent-deep)}
+.pill.c{background:#e3ecf5;color:#2c5a86}
+.pill.l{background:var(--paper-2);color:var(--ink-soft)}
+.sys-prose{font-size:13.5px;line-height:1.6;color:var(--ink-soft);max-width:800px}
+.sys-prose b{color:var(--ink)}
+
+/* feedback — capture in the detail dialog + the audit-log tab */
+.fb{border-top:1px solid var(--rule-soft);margin-top:14px;padding-top:12px}
+.fb .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-faint);font-weight:700;margin-bottom:8px}
+.fb-actions{display:flex;gap:8px;margin-bottom:4px}
+.fb-btn.sel{border-color:var(--accent);background:var(--accent-soft)}
+.chiprow{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0}
+.chip{border:1px solid var(--rule);background:var(--card);border-radius:999px;padding:3px 10px;font-size:11px;cursor:pointer;color:var(--ink-soft)}
+.chip.sel{background:var(--accent-soft);border-color:var(--accent);color:var(--ink)}
+.fb-row{display:flex;gap:12px;background:var(--card);border:1px solid var(--rule-soft);border-radius:11px;padding:12px 14px;margin-bottom:10px;box-shadow:var(--shadow)}
+.fb-row .thumb{width:56px;height:56px;border-radius:8px;overflow:hidden;background:var(--paper);flex:none;cursor:pointer;border:1px solid var(--rule-soft)}
+.fb-row .thumb img{width:100%;height:100%;object-fit:cover}
+.fb-row .main{flex:1;min-width:0}
+.fb-row .head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px}
+.fb-row .head b{font-size:13px}
+.fb-row .note{font-size:13px;color:var(--ink-soft);margin:3px 0 0}
+.fb-row .disp{font-size:12px;color:var(--ink-soft);border-left:2px solid var(--accent);padding:2px 0 2px 9px;margin-top:7px}
+.fb-row .disp code,.fb-hist code{background:var(--paper-2);border-radius:4px;padding:0 4px;font-size:11px}
+.fb-hist .item{font-size:12.5px;border-top:1px dashed var(--rule-soft);padding:7px 0}
+.fb-hist .item .disp{font-size:12px;color:var(--ink-soft);border-left:2px solid var(--accent);padding-left:8px;margin-top:4px}
+
+/* identity view — full-bleed; the injected .identity-view carries its own layout */
+#identity.view.active{display:block}
+#identity-mount{min-height:calc(100vh - 1px)}
+
+.empty{color:var(--ink-faint);padding:48px;text-align:center}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--rule);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail">
+    <div class="brand"><span class="mark"></span><span class="wordmark">Fresh&nbsp;Context<b>Studio</b></span></div>
+    <nav class="nav" id="nav"></nav>
+    <div class="rail-foot">
+      <div class="mcp"><span class="dot"></span><span>Every view is also a Claude / MCP call — same API, both doors.</span></div>
+      <button class="link" id="tokenBtn">access token</button>
+    </div>
+  </aside>
+
+  <main class="content">
+    <section id="identity" class="view active"><div id="identity-mount"></div></section>
+
+    <section id="gallery" class="view pad">
+      <div class="page-head"><h2>Asset gallery</h2><p>Every asset we've made — generated + the brand library — searchable by meaning, form, shot type, and source. Off-brand assets (marked 👎 in feedback) are hidden by default.</p></div>
+      <div class="controls">
+        <label class="field" style="flex:1"><span id="searchIc"></span><input type="search" id="q" placeholder="Search by meaning — “citrus cross-section”, “deployment arrows”, “stipple portrait”…"></label>
+        <select id="formFilter"><option value="">any form</option></select>
+        <select id="shotTypeFilter"><option value="">any shot type</option></select>
+        <select id="sourceFilter"><option value="">any source</option><option value="generated">generated</option><option value="library">library</option></select>
+        <button class="btn" id="searchBtn">Search</button>
+        <button class="btn ghost" id="clearBtn">Clear</button>
+      </div>
+      <label class="muted" style="display:inline-flex;align-items:center;gap:6px;margin:-6px 0 12px;cursor:pointer"><input type="checkbox" id="showHidden"> show off-brand (hidden by feedback)</label>
+      <div class="muted" id="galleryStatus"></div>
+      <div id="grid"></div>
+      <div id="gridSentinel" style="height:1px"></div>
+    </section>
+
+    <section id="generate" class="view pad">
+      <div class="page-head"><h2>Generate</h2><p>Make a new on-brand image from a shot type. Claude can call this too, via <code>studio_generate_image</code>.</p></div>
+      <div class="genform">
+        <div><label>Shot type</label><select id="genTool" style="width:100%"></select></div>
+        <div><label>Prompt — the subject; the shot type's brand register is prepended automatically</label>
+          <textarea id="genPrompt" rows="4" style="width:100%" placeholder="e.g. a mature organic network of stippled nodes, brown ink on cream"></textarea></div>
+        <div class="row">
+          <div><label>Aspect</label><select id="genAspect" style="width:100%"><option>1:1</option><option>16:9</option><option>9:16</option><option>4:3</option><option>3:4</option></select></div>
+          <div><label>Variants</label><select id="genVariants" style="width:100%"><option>1</option><option selected>2</option><option>3</option><option>4</option></select></div>
+          <div style="align-self:end"><button class="btn" id="genBtn" style="width:100%">Generate</button></div>
+        </div>
+        <div class="muted" id="genStatus"></div>
+      </div>
+      <div id="genResults"></div>
+    </section>
+
+    <section id="feedback" class="view pad">
+      <div class="page-head"><h2>Feedback</h2><p>Judgments captured on gallery assets and the decisions they produced — the audit log for the generation rules. Capture with 👍/👎 on any asset; triage runs as <code>/studio-crit</code> in a Claude session and writes its decisions back here. Nothing is regenerated — the rules upstream are what change.</p></div>
+      <div class="controls">
+        <select id="fbStatus"><option value="open">open</option><option value="">all</option><option value="resolved">resolved</option><option value="dismissed">dismissed</option></select>
+        <select id="fbVerdict"><option value="">any verdict</option><option value="positive">positive</option><option value="negative">negative</option></select>
+      </div>
+      <div class="muted" id="fbStatusLine"></div>
+      <div id="fbList" style="margin-top:12px"></div>
+    </section>
+
+    <section id="brand" class="view pad">
+      <div class="page-head"><h2>Voice &amp; tone</h2><p>How we sound and the rules behind how we look. The Identity tab is the story; this is the reference.</p></div>
+      <div id="brandContent" class="empty">Loading…</div>
+    </section>
+
+    <section id="system" class="view pad">
+      <div class="page-head"><h2>The Brand System</h2><p>How we keep the brand consistent, and use AI to make more good customer-facing work without the brand drifting - the business system and the technical implementation behind it, in one place.</p></div>
+
+      <div class="sys-live" id="sysLive"><span class="dot"></span><span>Loading published canon…</span></div>
+
+      <div class="section-head">Why this matters</div>
+      <div class="sys-prose">We sell a claim: that we help organizations put AI to work without losing what makes them themselves. Our own brand is the first proof of that claim - every page, proposal, post, and image a prospect sees is either building one clear impression of Fresh Context or muddying it.<br><br>For a firm this small, consistency is leverage; it makes a team of two read like a firm with a real point of view. And it is fragile: the more people and AI we put to work making collateral, the more ways the brand drifts. Drift is quiet - no single slip looks like a problem; the accumulation is what costs us credibility. The goal is simple to say and hard to do: <b>everything we put in front of a customer should look and sound like the same firm, whoever or whatever made it.</b></div>
+
+      <div class="section-head">What "on-brand" looks like</div>
+      <div class="sys-prose"><b>Voice</b> - operator-first, prescriptive, specific, honest about what is broken; not a consulting deck.<br><b>Language</b> - our own words used the same way every time, never watered down.<br><b>Look</b> - hand-drawn scientific illustration: brown ink on cream, one orange accent. No stock, no generic vector, no glassy AI look.<br><b>Fit</b> - the format matches where the reader is; a thesis, a case study, and a proposal are different jobs.<br><br>When it works, you cannot tell whether Sam, a teammate, or an AI drafted something. When it does not, you get the tells: em dashes that read as AI-written, our terms diluted, a visual that could belong to anyone.</div>
+
+      <div class="section-head">How we approach it with AI</div>
+      <div class="sys-prose">AI is the reason we can make far more collateral, far faster. It is also why the brand can drift faster, because out of the box AI produces competent, average, off-brand work. The obvious fix - paste the guidelines into every prompt - does not hold: nobody does it every time, it comes out different each time, and it quietly rots.<br><br>So we do the same thing we tell clients: <b>treat the brand as shared context every AI session already has.</b> We write it down once, and it comes along automatically - for every person, in every session - instead of being remembered, or forgotten, each time. The payoff is the whole point: <b>more customer-facing work, faster, on-brand by default.</b> This is us running our own thesis on ourselves.</div>
+
+      <div class="section-head">One brand, three ways it reaches the work</div>
+      <div class="sys-prose" style="margin-bottom:14px">We write the brand down in one place. <b>/brand-sync</b> publishes it, with a review first. From then on it reaches the work three ways - always on, on demand, and as a quality check - so being on-brand is the default, not an extra step anyone has to remember.</div>
+      <div class="lanes">
+        <div class="lane"><div class="ttl">Always on</div><div class="mech">in every session, automatically</div>
+          <dl><dt>what</dt><dd>the core brand rules - voice, language, look, format</dd>
+          <dt>reach</dt><dd>every session and every teammate, no setup</dd>
+          <dt>why</dt><dd>voice shapes every sentence - too constant to fetch each time</dd></dl></div>
+        <div class="lane"><div class="ttl">On demand</div><div class="mech">pulled when a task needs it</div>
+          <dl><dt>what</dt><dd>deeper guidance by stage + the brand image library</dd>
+          <dt>reach</dt><dd>available when the Studio service is running</dd>
+          <dt>why</dt><dd>situational guidance is a lookup - pull it only when relevant</dd></dl></div>
+        <div class="lane"><div class="ttl">Quality check</div><div class="mech">before customer-facing copy ships</div>
+          <dl><dt>what</dt><dd>a rubric that reviews a draft against the brand</dd>
+          <dt>reach</dt><dd>the draft-check step before work goes out</dd>
+          <dt>why</dt><dd>catch drift before a customer sees it, not after</dd></dl></div>
+      </div>
+
+      <div class="section-head">How the brand reaches the work</div>
+      <div class="flow">
+        <div class="step"><b>We write it down</b><span>one home for the brand</span></div>
+        <div class="arw">→</div>
+        <div class="step gate"><b>We publish it</b><span>with a review first</span></div>
+        <div class="arw">→</div>
+        <div class="step"><b>It's shared</b><span>rules + where each came from</span></div>
+        <div class="arw">→</div>
+        <div class="step"><b>Every session has it</b><span>automatically, always on</span></div>
+        <div class="arw">→</div>
+        <div class="step"><b>Deeper guidance</b><span>a pull away, on demand</span></div>
+      </div>
+      <div class="sys-prose" style="margin:8px 0 4px"><b>Publish, not remember.</b> We write the brand once and publish it with a review; from then on it shows up in the work by default, with deeper guidance there to pull when a task needs it.</div>
+
+      <div class="section-head">Where it stands, honestly</div>
+      <div class="sys-prose">The always-on rules reach everyone today, with nothing to run. The on-demand side - deeper guidance and the image library - runs on Sam's machine for now; deploying it is the next step, and it will move this page to studio.freshcontext.ai. If Studio is down, a session still has the core brand; it just can't pull the deeper library or generate images. <b>You're reading this from the Studio app, so it's live right now.</b></div>
+
+      <div style="border-top:2px solid var(--rule);margin:40px 0 2px"></div>
+      <div class="section-head" style="font-size:22px">Under the hood <span class="muted" style="font-weight:400;font-size:13.5px">- the technical implementation</span></div>
+      <div class="sys-prose">The decision underneath all of this is <b>authoring versus serving, not belief versus rules.</b> One home authors the brand - our knowledge vault, where belief and the operational tables live together. Studio publishes and serves a read-only cache in which every served rule carries provenance back to its source note. Nothing is authoritative in two places. It is our own product theses applied to our own brand: "one architecture, many systems"; "publication is a process, not a status"; "two doors, one API" - these human screens and our AI sessions hit the same endpoints.</div>
+
+      <div class="section-head">What ships in the repo vs what runs live</div>
+      <table class="sys-table">
+        <thead><tr><th>Piece</th><th>Where it lives</th><th></th></tr></thead>
+        <tbody>
+          <tr><td>The always-on brand rules</td><td><span class="pill a">in the repo</span><span class="pill b">every session</span></td><td>git gives them to everyone; nothing to run</td></tr>
+          <tr><td>The rubric + edit ledger</td><td><span class="pill a">in the repo</span></td><td>the quality-check lane</td></tr>
+          <tr><td>Studio (on-demand guidance, images)</td><td><span class="pill c">runs live</span></td><td>read-only; needs the service up</td></tr>
+          <tr><td>The published brand + image library</td><td><span class="pill l">database</span></td><td>lives in our database, not the repo</td></tr>
+          <tr><td>The Studio service + machine files</td><td><span class="pill l">machine-local</span></td><td>Sam's machine today; a deployment next</td></tr>
+        </tbody>
+      </table>
+
+      <div class="section-head">How we made the call</div>
+      <div class="sys-prose">We considered and rejected: a session-start hook (it does not reach sub-agents, and adds an "is it installed" failure mode), a plugin (git already distributes a committed file to everyone), and making the always-on rules a pull-on-demand skill (voice cannot wait to be fetched). A generated, committed file gives us freshness with none of the machinery.</div>
+
+      <div class="section-head">Provenance and honest findings</div>
+      <div class="sys-prose">Every served rule carries its source note and compile date - see the live strip at the top (currently 22 rules, compiled 2026-07-12, each traceable to the vault note it came from). Open findings from the review that built this page: the on-demand side needs a running service that is not yet always-on, and our knowledge-base index is currently laptop-bound; one deployment fixes both. The always-on lane is unaffected - it is a committed file that reaches everyone regardless.</div>
+
+      <div id="sysDocs" style="margin-top:34px;padding-top:16px;border-top:1px solid var(--rule-soft)"></div>
+    </section>
+  </main>
+</div>
+
+<dialog id="detail"><button class="closex" id="closeBtn"></button><div id="detailBody" class="detail"></div></dialog>
+
+<script>
+const ICONS={
+  house:'M219.31,108.68l-80-80a16,16,0,0,0-22.62,0l-80,80A15.87,15.87,0,0,0,32,120v96a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V160h32v56a8,8,0,0,0,8,8h64a8,8,0,0,0,8-8V120A15.87,15.87,0,0,0,219.31,108.68ZM208,208H160V152a8,8,0,0,0-8-8H104a8,8,0,0,0-8,8v56H48V120l80-80,80,80Z',
+  images:'M208,32H80A16,16,0,0,0,64,48V64H48A16,16,0,0,0,32,80V208a16,16,0,0,0,16,16H176a16,16,0,0,0,16-16V192h16a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM80,48H208v69.38l-16.7-16.7a16,16,0,0,0-22.62,0L93.37,176H80Zm96,160H48V80H64v96a16,16,0,0,0,16,16h96Zm32-32H116l64-64,28,28v36Zm-88-64A24,24,0,1,0,96,88,24,24,0,0,0,120,112Zm0-32a8,8,0,1,1-8,8A8,8,0,0,1,120,80Z',
+  sparkle:'M197.58,129.06,146,110l-19-51.62a15.92,15.92,0,0,0-29.88,0L78,110l-51.62,19a15.92,15.92,0,0,0,0,29.88L78,178l19,51.62a15.92,15.92,0,0,0,29.88,0L146,178l51.62-19a15.92,15.92,0,0,0,0-29.88ZM137,164.22a8,8,0,0,0-4.74,4.74L112,223.85,91.78,169A8,8,0,0,0,87,164.22L32.15,144,87,123.78A8,8,0,0,0,91.78,119L112,64.15,132.22,119a8,8,0,0,0,4.74,4.74L191.85,144ZM144,40a8,8,0,0,1,8-8h16V16a8,8,0,0,1,16,0V32h16a8,8,0,0,1,0,16H184V64a8,8,0,0,1-16,0V48H152A8,8,0,0,1,144,40ZM248,88a8,8,0,0,1-8,8h-8v8a8,8,0,0,1-16,0V96h-8a8,8,0,0,1,0-16h8V72a8,8,0,0,1,16,0v8h8A8,8,0,0,1,248,88Z',
+  textaa:'M87.24,52.59a8,8,0,0,0-14.48,0l-64,136a8,8,0,1,0,14.48,6.81L39.9,160h80.2l16.66,35.4a8,8,0,1,0,14.48-6.81ZM47.43,144,80,74.79,112.57,144ZM200,96c-12.76,0-22.73,3.47-29.63,10.32a8,8,0,0,0,11.26,11.36c3.8-3.77,10-5.68,18.37-5.68,13.23,0,24,9,24,20v3.22A42.76,42.76,0,0,0,200,128c-22.06,0-40,16.15-40,36s17.94,36,40,36a42.73,42.73,0,0,0,24-7.25,8,8,0,0,0,16-.75V132C240,112.15,222.06,96,200,96Zm0,88c-13.23,0-24-9-24-20s10.77-20,24-20,24,9,24,20S213.23,184,200,184Z',
+  search:'M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z',
+  star:'M239.18,97.26A16.38,16.38,0,0,0,224.92,86l-59-4.76L143.14,26.15a16.36,16.36,0,0,0-30.27,0L90.11,81.23,31.08,86a16.46,16.46,0,0,0-9.37,28.86l45,38.83L53,211.75a16.38,16.38,0,0,0,24.5,17.82L128,198.49l50.53,31.08A16.4,16.4,0,0,0,203,211.75l-13.76-58.07,45-38.83A16.43,16.43,0,0,0,239.18,97.26Z',
+  x:'M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z',
+  layers:'M40,52H216a8,8,0,0,1,8,8v16a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V60A8,8,0,0,1,40,52Zm0,60H216a8,8,0,0,1,8,8v16a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V120A8,8,0,0,1,40,112Zm0,60H216a8,8,0,0,1,8,8v16a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V180A8,8,0,0,1,40,172Z',
+  chat:'M140,128a12,12,0,1,1-12-12A12,12,0,0,1,140,128ZM84,116a12,12,0,1,0,12,12A12,12,0,0,0,84,116Zm88,0a12,12,0,1,0,12,12A12,12,0,0,0,172,116Zm60,12A104,104,0,0,1,79.12,219.82L45.07,231.17a16,16,0,0,1-20.24-20.24l11.35-34.05A104,104,0,1,1,232,128Zm-16,0A88,88,0,1,0,51.81,172.06a8,8,0,0,1,.66,6.54L40,216,77.4,203.53a7.85,7.85,0,0,1,2.53-.42,8,8,0,0,1,4,1.08A88,88,0,0,0,216,128Z',
+  eyeslash:'M53.92,34.62A8,8,0,1,0,42.08,45.38L61.32,66.55C25,88.84,9.38,123.2,8.69,124.76a8,8,0,0,0,0,6.5c.35.79,8.82,19.57,27.65,38.4C61.43,194.74,93.12,208,128,208a127.11,127.11,0,0,0,52.07-10.83l22,24.21a8,8,0,1,0,11.84-10.76Zm47.33,75.84,41.67,45.85a32,32,0,0,1-41.67-45.85ZM128,192c-30.78,0-57.67-11.19-79.93-33.25A133.16,133.16,0,0,1,25,128c4.69-8.79,19.66-33.39,47.35-49.38l18,19.75a48,48,0,0,0,63.66,70l14.73,16.2A112,112,0,0,1,128,192Zm6-95.43a8,8,0,0,1,3-15.72,48.16,48.16,0,0,1,38.77,42.64,8,8,0,0,1-7.22,8.71,6.39,6.39,0,0,1-.75,0,8,8,0,0,1-8-7.26A32.09,32.09,0,0,0,134,96.57Zm113.28,34.69c-.42.94-10.55,23.37-33.36,43.8a8,8,0,1,1-10.67-11.92A132.77,132.77,0,0,0,231.05,128a133.15,133.15,0,0,0-23.12-30.77C185.67,75.19,158.78,64,128,64a118.37,118.37,0,0,0-19.36,1.57A8,8,0,1,1,106,49.79,134,134,0,0,1,128,48c34.88,0,66.57,13.26,91.66,38.35,18.83,18.83,27.3,37.62,27.65,38.41A8,8,0,0,1,247.31,131.26Z',
+};
+const icon=(n,s=20)=>`<svg class="ic" viewBox="0 0 256 256" width="${s}" height="${s}" fill="currentColor" aria-hidden="true"><path d="${ICONS[n]}"/></svg>`;
+
+const $=(s,el=document)=>el.querySelector(s);
+const token=()=>localStorage.getItem('studio_token')||'';
+const headers=()=>{const h={};const t=token();if(t)h['Authorization']='Bearer '+t;return h;};
+async function api(path,opts={}){
+  const res=await fetch('/api'+path,{...opts,headers:{...(opts.headers||{}),...headers(),...(opts.body?{'Content-Type':'application/json'}:{})}});
+  if(!res.ok) throw new Error((await res.json().catch(()=>({error:res.statusText}))).error||res.status);
+  return res.json();
+}
+const fileUrl=(sp)=>'/files/'+sp.split('/').map(encodeURIComponent).join('/');
+
+// ── nav ──
+const NAV=[['identity','Identity','house'],['gallery','Gallery','images'],['generate','Generate','sparkle'],['feedback','Feedback','chat'],['brand','Voice & Tone','textaa'],['system','System','layers']];
+$('#nav').innerHTML=NAV.map(([t,l,i],x)=>`<button data-tab="${t}" class="${x===0?'active':''}">${icon(i)}<span>${l}</span></button>`).join('');
+$('#searchIc').outerHTML=icon('search',18);
+$('#closeBtn').innerHTML=icon('x',20);
+document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#nav button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active'); $('#'+b.dataset.tab).classList.add('active');
+  window.scrollTo(0,0);
+  if(b.dataset.tab==='identity') loadIdentity();
+  if(b.dataset.tab==='brand') loadBrand();
+  if(b.dataset.tab==='generate') loadTools();
+  if(b.dataset.tab==='feedback') loadFeedback();
+  if(b.dataset.tab==='system') loadSystem();
+});
+$('#tokenBtn').onclick=()=>{const t=prompt('Studio access token (dev only — Google login handles this in production):',token());if(t!==null){localStorage.setItem('studio_token',t.trim());location.reload();}};
+
+// ── identity (native injection, no iframe) ──
+let identityLoaded=false;
+async function loadIdentity(){
+  if(identityLoaded) return; identityLoaded=true;
+  const mount=$('#identity-mount');
+  try{
+    mount.innerHTML=await (await fetch('/identity-embed.html')).text();
+    const js=await (await fetch('/identity-embed.js')).text();
+    new Function(js)();            // run the golden-circle scroll/reveal script against the injected DOM
+  }catch(e){ mount.innerHTML='<div class="empty">Identity failed to load: '+e.message+'</div>'; }
+}
+
+// ── gallery ──
+function card(a){
+  const w=document.createElement('div'); w.className='cardwrap';
+  const sim=a.similarity!=null?`<span class="sim">${(a.similarity*100).toFixed(0)}%</span>`:'';
+  const hiddenBadge=a.hidden?`<span class="hidbadge" title="off-brand — hidden by feedback">${icon('eyeslash',13)} hidden</span>`:'';
+  w.innerHTML=`<button class="star${a.starred?' on':''}" title="star">${icon('star',15)}</button>
+    ${hiddenBadge}
+    <div class="card${a.hidden?' is-hidden':''}"><div class="thumb"><img loading="lazy" src="${fileUrl(a.storage_path)}" alt=""></div>
+    <div class="meta"><span class="form">${a.form||'—'}</span>${sim}<div class="cap">${a.caption||a.title||''}</div></div></div>`;
+  w.querySelector('.card').onclick=()=>openDetail(a);
+  w.querySelector('.star').onclick=async(e)=>{e.stopPropagation();const r=await api(`/assets/${a.id}/star`,{method:'POST',body:JSON.stringify({starred:!a.starred})});a.starred=r.starred;e.currentTarget.classList.toggle('on',a.starred);};
+  return w;
+}
+const esc=(s)=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function hiddenBanner(a){
+  return a.hidden?`<div class="sys-note" id="hidNote" style="margin:12px 0;padding:9px 13px"><span style="flex:1">${icon('eyeslash',16)} Off-brand — hidden from the default gallery view.</span><button class="btn ghost" id="restoreBtn" style="padding:5px 11px">Restore to gallery</button></div>`:'';
+}
+function openDetail(a){
+  const p=a.provenance||{};
+  const rows=p.prompt?`<dt>prompt</dt><dd>${esc(p.prompt)}</dd><dt>tool</dt><dd>${esc(p.tool||'')}</dd>`:(p.dir?`<dt>source</dt><dd>${esc(p.dir)}</dd>`:'');
+  $('#detailBody').innerHTML=`<div class="img"><img src="${fileUrl(a.storage_path)}"></div>
+    <div class="info"><h3>${esc(a.title||a.form)}</h3>
+    <div class="muted">${a.source} · ${a.form||''} ${a.width?`· ${a.width}×${a.height}`:''}</div>
+    ${hiddenBanner(a)}
+    <p style="font-size:14px">${esc(a.caption||'')}</p>
+    <div>${(a.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div>
+    <dl>${rows}<dt>path</dt><dd><a href="${fileUrl(a.storage_path)}" target="_blank">${a.storage_path}</a></dd></dl>
+    <div class="fb">
+      <div class="lbl">Feedback → generation rules</div>
+      <div class="fb-actions">
+        <button class="btn ghost fb-btn" id="fbPos">👍 Love it</button>
+        <button class="btn ghost fb-btn" id="fbNeg">👎 Off-brand</button>
+      </div>
+      <div id="fbForm" style="display:none">
+        <textarea id="fbNote" rows="2" style="width:100%;margin-top:6px" placeholder="Why? This is the signal the triage agent works from — it changes rules, it never regenerates this image."></textarea>
+        <div class="chiprow" id="fbChips"></div>
+        <div style="display:flex;align-items:center;gap:10px"><button class="btn" id="fbSubmit">Capture feedback</button><span class="muted" id="fbMsg"></span></div>
+      </div>
+      <div class="fb-hist" id="fbHist"></div>
+    </div></div>`;
+  $('#detail').showModal();
+  wireRestore(a);
+  wireFeedback(a);
+}
+function wireRestore(a){
+  const btn=$('#restoreBtn'); if(!btn)return;
+  btn.onclick=async()=>{
+    btn.disabled=true;
+    try{ await api(`/assets/${a.id}/hidden`,{method:'POST',body:JSON.stringify({hidden:false})}); a.hidden=false; $('#hidNote').remove(); }
+    catch(e){ btn.disabled=false; alert('Error: '+e.message); }
+  };
+}
+
+// ── feedback capture (dialog) + audit log (tab) ──
+// Capture is deliberately dumb: verdict + why + optional critique tags. The
+// routing (tool prompt vs register guideline vs vault belief) is entirely the
+// triage agent's call — /studio-crit reads this queue with a review gate.
+let critiqueTags=[];
+async function loadCritiqueTags(){try{critiqueTags=await api('/taxonomy?kind=critique');}catch{}}
+function fbHistItem(f){
+  const pill=f.status==='open'?'b':f.status==='resolved'?'a':'l';
+  return `<div class="item">${f.verdict==='positive'?'👍':'👎'} <span class="pill ${pill}">${f.status}</span> <span class="muted">${(f.created_at||'').slice(0,10)}</span>
+    ${f.note?`<div>${esc(f.note)}</div>`:''}
+    ${(f.critique_tags||[]).length?`<div>${f.critique_tags.map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div>`:''}
+    ${renderDisp(f.disposition)}</div>`;
+}
+function renderDisp(d){
+  if(!d)return'';
+  const head=d.level?`<div>→ routed <code>${esc(d.level)}</code>-level</div>`:'';
+  const lines=(d.decisions||[]).map(x=>`<div>→ <code>${esc(x.action||'')}</code> ${esc(x.detail||'')}${x.target?` · <span class="muted">${esc(x.target)}</span>`:''}</div>`).join('');
+  return (head||lines)?`<div class="disp">${head}${lines}</div>`:'';
+}
+function wireFeedback(a){
+  let verdict=null; const picked=new Set();
+  const form=$('#fbForm'),chips=$('#fbChips');
+  function renderChips(){
+    chips.innerHTML=verdict==='negative'?critiqueTags.map(t=>`<span class="chip${picked.has(t.value)?' sel':''}" data-v="${esc(t.value)}" title="${esc(t.description||'')}">${esc(t.value)}</span>`).join(''):'';
+    chips.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{const v=c.dataset.v;picked.has(v)?picked.delete(v):picked.add(v);renderChips();});
+  }
+  function pick(v,btn){verdict=v;$('#fbPos').classList.toggle('sel',v==='positive');$('#fbNeg').classList.toggle('sel',v==='negative');form.style.display='block';renderChips();}
+  $('#fbPos').onclick=()=>pick('positive');
+  $('#fbNeg').onclick=()=>pick('negative');
+  $('#fbSubmit').onclick=async()=>{
+    if(!verdict)return;
+    $('#fbSubmit').disabled=true;$('#fbMsg').textContent='capturing…';
+    try{
+      const fb=await api(`/assets/${a.id}/feedback`,{method:'POST',body:JSON.stringify({verdict,note:$('#fbNote').value,tags:[...picked]})});
+      if(verdict==='positive')a.starred=true;
+      if(verdict==='negative'&&!a.hidden){a.hidden=true;$('.info .muted').insertAdjacentHTML('afterend',hiddenBanner(a));wireRestore(a);}
+      $('#fbHist').innerHTML=fbHistItem(fb)+$('#fbHist').innerHTML;
+      $('#fbMsg').textContent='captured — /studio-crit triages the queue';
+      $('#fbNote').value='';picked.clear();renderChips();
+    }catch(e){$('#fbMsg').textContent='Error: '+e.message;}
+    finally{$('#fbSubmit').disabled=false;}
+  };
+  api(`/feedback?asset_id=${a.id}`).then(rows=>{$('#fbHist').innerHTML=rows.map(fbHistItem).join('');}).catch(()=>{});
+}
+async function loadFeedback(){
+  const status=$('#fbStatus').value,verdict=$('#fbVerdict').value;
+  const qs=new URLSearchParams({limit:'200'});if(status)qs.set('status',status);if(verdict)qs.set('verdict',verdict);
+  $('#fbStatusLine').innerHTML='<span class="spinner"></span> loading…';
+  try{
+    const rows=await api('/feedback?'+qs.toString());
+    $('#fbStatusLine').textContent=`${rows.length} item${rows.length===1?'':'s'}${status?' · '+status:''}`;
+    $('#fbList').innerHTML=rows.length?rows.map(f=>{
+      const asset=f.asset||{};const prov=asset.provenance||{};
+      const pill=f.status==='open'?'b':f.status==='resolved'?'a':'l';
+      return `<div class="fb-row">
+        <div class="thumb" data-aid="${asset.id||''}">${asset.storage_path?`<img loading="lazy" src="${fileUrl(asset.storage_path)}">`:''}</div>
+        <div class="main">
+          <div class="head">${f.verdict==='positive'?'👍':'👎'} <b>${esc(asset.title||asset.form||'asset')}</b>${prov.tool?`<span class="muted">· ${esc(prov.tool)}</span>`:''}<span class="pill ${pill}">${f.status}</span><span class="muted">${(f.created_at||'').slice(0,10)}</span></div>
+          ${f.note?`<div class="note">${esc(f.note)}</div>`:''}
+          ${(f.critique_tags||[]).length?`<div>${f.critique_tags.map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div>`:''}
+          ${renderDisp(f.disposition)}
+        </div></div>`;
+    }).join(''):'<div class="empty">No feedback yet — 👍/👎 any asset in the gallery.</div>';
+    $('#fbList').querySelectorAll('.thumb[data-aid]').forEach(t=>t.onclick=async()=>{
+      if(!t.dataset.aid)return;
+      try{openDetail(await api('/assets/'+t.dataset.aid));}catch{}
+    });
+  }catch(e){$('#fbStatusLine').textContent='Error: '+e.message;}
+}
+$('#fbStatus').onchange=loadFeedback;$('#fbVerdict').onchange=loadFeedback;
+$('#closeBtn').onclick=()=>$('#detail').close();
+// Browse mode is keyset-paged (infinite scroll: ?before/&before_id of the last
+// row + X-Total-Count for the status line). Semantic search (?q=) stays a single
+// top-N ranked page — relevance, not history, so no cursor.
+const PAGE=60;
+const gal={mode:'browse',cursor:null,done:false,loading:false,shown:0,total:null};
+async function fetchAssets(qs){
+  const res=await fetch('/api/assets?'+qs.toString(),{headers:headers()});
+  if(!res.ok) throw new Error((await res.json().catch(()=>({error:res.statusText}))).error||res.status);
+  return {assets:await res.json(),total:parseInt(res.headers.get('X-Total-Count'),10)||null};
+}
+function galleryStatusLine(q){
+  if(gal.mode==='search') return `${gal.shown} result${gal.shown===1?'':'s'} for “${q}”`;
+  const total=gal.total!=null?gal.total:'?';
+  return gal.done?`all ${total} asset${total===1?'':'s'} loaded`:`${gal.shown} of ${total} assets — scroll for more`;
+}
+async function runGallery(reset=true){
+  if(gal.loading)return; gal.loading=true;
+  const q=$('#q').value.trim(),form=$('#formFilter').value,source=$('#sourceFilter').value,toolId=$('#shotTypeFilter').value,showHidden=$('#showHidden').checked;
+  if(reset){ gal.mode=q?'search':'browse'; gal.cursor=null; gal.done=false; gal.shown=0; gal.total=null; $('#grid').innerHTML=''; }
+  const qs=new URLSearchParams(); if(q)qs.set('q',q); if(form)qs.set('form',form); if(source)qs.set('source',source); if(toolId)qs.set('tool_id',toolId); if(showHidden)qs.set('include_hidden','true'); qs.set('limit',String(PAGE));
+  if(!reset&&gal.cursor){ qs.set('before',gal.cursor.created_at); if(gal.cursor.id)qs.set('before_id',gal.cursor.id); }
+  $('#galleryStatus').innerHTML='<span class="spinner"></span> '+(reset?'searching…':'loading more…');
+  try{
+    const {assets,total}=await fetchAssets(qs);
+    assets.forEach(a=>$('#grid').append(card(a)));
+    gal.shown+=assets.length;
+    if(total!=null)gal.total=total;
+    if(gal.mode==='search'){ gal.done=true; }
+    else{
+      const last=assets[assets.length-1];
+      gal.cursor=last?{created_at:last.created_at,id:last.id}:gal.cursor;
+      gal.done=assets.length<PAGE;
+    }
+    $('#galleryStatus').textContent=galleryStatusLine(q);
+    if(!gal.shown)$('#grid').innerHTML='<div class="empty">No matches.</div>';
+  }catch(e){ $('#galleryStatus').textContent='Error: '+e.message; gal.done=true; }
+  finally{ gal.loading=false; }
+}
+new IntersectionObserver((es)=>{
+  if(es[0].isIntersecting&&gal.mode==='browse'&&!gal.done&&!gal.loading)runGallery(false);
+},{rootMargin:'600px'}).observe($('#gridSentinel'));
+$('#searchBtn').onclick=()=>runGallery();
+$('#q').addEventListener('keydown',e=>{if(e.key==='Enter')runGallery();});
+$('#clearBtn').onclick=()=>{$('#q').value='';$('#formFilter').value='';$('#shotTypeFilter').value='';$('#sourceFilter').value='';$('#showHidden').checked=false;runGallery();};
+$('#shotTypeFilter').onchange=()=>runGallery();
+$('#showHidden').onchange=()=>runGallery();
+async function loadForms(){try{const f=await api('/taxonomy?kind=form');f.forEach(x=>{const o=document.createElement('option');o.value=x.value;o.textContent=x.value;$('#formFilter').append(o);});}catch{}}
+async function loadShotTypes(){try{const t=await api('/tools?kind=image');t.sort((a,b)=>a.name.localeCompare(b.name)).forEach(x=>{const o=document.createElement('option');o.value=x.id;o.textContent=x.name;$('#shotTypeFilter').append(o);});}catch{}}
+
+// ── generate ──
+let toolsLoaded=false;
+async function loadTools(){
+  if(toolsLoaded)return; toolsLoaded=true;
+  try{const tools=await api('/tools?kind=image'); $('#genTool').innerHTML=tools.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');}
+  catch(e){ $('#genStatus').textContent='Error loading tools: '+e.message; }
+}
+$('#genBtn').onclick=async()=>{
+  const tool_id=$('#genTool').value,prompt=$('#genPrompt').value.trim();
+  if(!prompt){$('#genStatus').textContent='Enter a prompt.';return;}
+  $('#genBtn').disabled=true; $('#genStatus').innerHTML='<span class="spinner"></span> generating (20–60s)…';
+  try{
+    const job=await api('/generate',{method:'POST',body:JSON.stringify({tool_id,prompt,aspect:$('#genAspect').value,variants:+$('#genVariants').value})});
+    $('#genStatus').textContent='Done — added to the gallery.';
+    $('#genResults').innerHTML=(job.result_paths||[]).map(rp=>`<img src="${fileUrl(rp)}">`).join('')+$('#genResults').innerHTML;
+  }catch(e){ $('#genStatus').textContent='Error: '+e.message; }
+  finally{ $('#genBtn').disabled=false; }
+};
+
+// ── brand / voice ──
+let brandLoaded=false;
+async function loadBrand(){
+  if(brandLoaded)return; brandLoaded=true;
+  try{
+    const {rules,guidelines,voice}=await api('/brand');
+    let html='';
+    if(rules&&rules.length){
+      const KINDS={voice:'Voice',style:'Style mechanics',lexicon:'Lexicon',format:'Format by funnel stage',register:'Visual register',principle:'Principles',routing:'Routing'};
+      const compiled=(rules[0].compiled_at||'').slice(0,10);
+      html+='<div class="section-head">Published canon <span class="muted" style="font-weight:400">— compiled from the vault '+compiled+' · read-only, provenance per rule</span></div>';
+      for(const k of ['voice','style','lexicon','format','register','principle','routing']){
+        const g=rules.filter(x=>x.kind===k); if(!g.length)continue;
+        html+=`<details class="brand-doc" open><summary>${KINDS[k]||k} <span class="muted" style="font-weight:400">(${g.length})</span></summary><div class="body"><ul>`+
+          g.map(x=>`<li>${x.scope!=='global'?'<b>['+x.scope.toUpperCase()+']</b> ':''}${x.rule}${x.source_title?' <span class="muted">· '+x.source_title+'</span>':''}</li>`).join('')+
+          '</ul></div></details>';
+      }
+    }
+    if(voice&&voice.length){ html+='<div class="section-head">Source notes <span class="muted" style="font-weight:400">— vault excerpts the canon is compiled from</span></div>';
+      html+=voice.map(v=>`<details class="brand-doc"><summary>${v.title}</summary><div class="body">${v.html}</div></details>`).join(''); }
+    html+='<div class="section-head">Visual register <span class="muted" style="font-weight:400">— the rules behind the look</span></div>';
+    html+=guidelines.map(g=>`<details class="brand-doc"><summary>${g.title}</summary><div class="body">${g.html}</div></details>`).join('');
+    $('#brandContent').className=''; $('#brandContent').innerHTML=html;
+  }catch(e){ $('#brandContent').innerHTML='<div class="empty">Error: '+e.message+'</div>'; }
+}
+
+// ── system (architecture exhibit; live canon strip from /api/brand) ──
+const SYSTEM_DOCS_URL='https://app.notion.com/p/39fb8f9694e781988e1de4c9d04d002f'; // Notion stub: FC Internal → Brand System
+let systemLoaded=false;
+async function loadSystem(){
+  const docs=$('#sysDocs');
+  const link=SYSTEM_DOCS_URL
+    ? `<a href="${SYSTEM_DOCS_URL}" target="_blank">the Notion stub &rarr;</a>`
+    : '<span class="muted">Notion stub pending</span>';
+  docs.innerHTML=`<div class="muted" style="font-size:12px">This page is the home for the brand system - the business system and its technical implementation. A short summary and pointer to it lives in Notion, under FC Internal: ${link}</div>`;
+  if(systemLoaded)return; systemLoaded=true;
+  try{
+    const {rules}=await api('/brand');
+    const strip=$('#sysLive');
+    if(!rules||!rules.length){ strip.innerHTML='<span class="dot" style="background:var(--ink-faint);box-shadow:none"></span><span>No published canon yet - run <code>/brand-sync</code>.</span>'; return; }
+    const compiled=(rules[0].compiled_at||'').slice(0,10);
+    const ambient=rules.filter(r=>r.ambient).length, staged=rules.length-ambient;
+    const bySrc={}; rules.forEach(r=>{const k=r.source_title||'-';bySrc[k]=(bySrc[k]||0)+1;});
+    const srcs=Object.entries(bySrc).sort((a,b)=>b[1]-a[1]).map(([t,n])=>`${t} (${n})`).join(' · ');
+    strip.innerHTML=`<span class="dot"></span><span><b>${rules.length} rules published</b> · compiled ${compiled} · ${ambient} always-apply, ${staged} stage-scoped · sources: ${srcs} · <a href="#" id="toVoice">full list in Voice &amp; Tone →</a></span>`;
+    const tv=$('#toVoice'); if(tv)tv.onclick=(e)=>{e.preventDefault();document.querySelector('#nav button[data-tab="brand"]').click();};
+  }catch(e){ $('#sysLive').innerHTML='<span class="dot" style="background:#c0392b;box-shadow:none"></span><span>Canon unavailable: '+e.message+'</span>'; }
+}
+
+// init — identity is the front door
+loadIdentity(); loadForms(); loadShotTypes(); loadCritiqueTags(); runGallery();
+</script>
+</body>
+</html>

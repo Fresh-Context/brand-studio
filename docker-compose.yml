@@ -1,0 +1,55 @@
+# Fresh Context Studio — Coolify stack: the app + oauth2-proxy in front.
+#
+# Topology (two doors, one API — see STUDIO-PRD.md):
+#   internet → Coolify proxy (TLS, studio.freshcontext.ai) → oauth2-proxy:4180
+#     ├─ UI + /files/*  → Google OAuth, @freshcontext.ai only → studio:3440
+#     └─ /api/* + /healthz → skip OAuth, pass through → studio:3440 (bearer
+#        enforced by the app itself — the machine/MCP door)
+#
+# The studio container is NOT exposed publicly; only oauth2-proxy gets the domain.
+# Secrets (${...}) are set in the Coolify resource's Environment Variables.
+
+services:
+  studio:
+    build: .
+    restart: unless-stopped
+    environment:
+      - PORT=3440
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - STUDIO_BEARER_TOKEN=${STUDIO_BEARER_TOKEN}
+      - STUDIO_API_URL=https://studio.freshcontext.ai
+      - STUDIO_GENERATED_DIR=/data/generated
+      - STUDIO_REFERENCES_DIR=/data/references
+      - STUDIO_LIBRARY_DIR=/data/library
+    volumes:
+      - studio-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3440/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
+    restart: unless-stopped
+    depends_on:
+      - studio
+    environment:
+      - OAUTH2_PROXY_PROVIDER=google
+      - OAUTH2_PROXY_CLIENT_ID=${OAUTH2_PROXY_CLIENT_ID}
+      - OAUTH2_PROXY_CLIENT_SECRET=${OAUTH2_PROXY_CLIENT_SECRET}
+      - OAUTH2_PROXY_COOKIE_SECRET=${OAUTH2_PROXY_COOKIE_SECRET}
+      - OAUTH2_PROXY_EMAIL_DOMAINS=freshcontext.ai
+      - OAUTH2_PROXY_REDIRECT_URL=https://studio.freshcontext.ai/oauth2/callback
+      - OAUTH2_PROXY_UPSTREAMS=http://studio:3440
+      - OAUTH2_PROXY_HTTP_ADDRESS=0.0.0.0:4180
+      # The machine door: /api/* is bearer-gated by the app, /healthz is public.
+      - OAUTH2_PROXY_SKIP_AUTH_ROUTES=^/api/,^/healthz
+      - OAUTH2_PROXY_COOKIE_SECURE=true
+      - OAUTH2_PROXY_REVERSE_PROXY=true
+      - OAUTH2_PROXY_SKIP_PROVIDER_BUTTON=true
+
+volumes:
+  studio-data:

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Template: __REPO__ is stamped to this checkout's absolute path by install-launchd.sh. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.freshcontext.studio</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>__REPO__/apps/studio/start.sh</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>__REPO__/apps/studio/logs/stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>__REPO__/apps/studio/logs/stderr.log</string>
+
+    <key>WorkingDirectory</key>
+    <string>__REPO__/apps/studio</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+</dict>
+</plist>
