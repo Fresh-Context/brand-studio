@@ -8,3 +8,4 @@ logs/
 # scripts/build-identity-embed.js (runs on npm run build / predev / prestart).
 public/identity-embed.html
 public/identity-embed.js
+__pycache__/
