@@ -453,12 +453,24 @@ $('#tokenBtn').onclick=()=>{const t=prompt('Studio access token (dev only — Go
 // ── identity (native injection, no iframe) ──
 let identityLoaded=false;
 async function loadIdentity(){
-  if(identityLoaded) return; identityLoaded=true;
+  if(identityLoaded) return;
   const mount=$('#identity-mount');
   try{
-    mount.innerHTML=await (await fetch('/identity-embed.html')).text();
-    const js=await (await fetch('/identity-embed.js')).text();
+    const htmlRes=await fetch('/identity-embed.html');
+    if(!htmlRes.ok){
+      // Not an auth problem: identity-embed.{html,js} are generated at boot
+      // from the brand library (STUDIO_LIBRARY_DIR — see DEPLOY.md) and
+      // simply don't exist yet if that library isn't mounted on this
+      // server. Every other tab works fine without it.
+      mount.innerHTML='<div class="empty">Identity content isn\'t configured on this server — the brand library (STUDIO_LIBRARY_DIR) isn\'t mounted here. Every other tab works normally.</div>';
+      return;
+    }
+    const jsRes=await fetch('/identity-embed.js');
+    if(!jsRes.ok) throw new Error('identity-embed.js missing (HTTP '+jsRes.status+')');
+    mount.innerHTML=await htmlRes.text();
+    const js=await jsRes.text();
     new Function(js)();            // run the golden-circle scroll/reveal script against the injected DOM
+    identityLoaded=true;
   }catch(e){ mount.innerHTML='<div class="empty">Identity failed to load: '+e.message+'</div>'; }
 }
 
