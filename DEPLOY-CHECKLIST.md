@@ -30,10 +30,10 @@ hardening step still pending.
       tested path; a second resource + a stable Docker network alias
       (`studio-internal`, set on the Studio app) is). `studio.freshcontext.ai`
       now points at oauth2-proxy; Studio itself has no public domain.
-      `/api/*` and `/healthz` skip oauth2-proxy (the machine/MCP door — bearer
-      token only, by design, see `docker-compose.yml`'s comment header);
-      everything else requires a Google login restricted to `@freshcontext.ai`
-      before it ever reaches the app.
+      Only `/healthz` skips oauth2-proxy (public liveness probe); everything
+      else, including `/api/*`, requires either a Google login or the
+      machine door's htpasswd credential — see the "Resolved" section below
+      for how that evolved from the original bearer-only design.
 - [x] **Reused the existing Juice OAuth client**
       (`942872456019-hhimr6j86rnelte55e5bhd313ghaadrl.apps.googleusercontent.com`)
       rather than creating a new one — this matches the *original* documented
@@ -53,8 +53,8 @@ Also fixed in code (`src/lib/auth.js`, commit `35aa1e2`): `requireBearer` used
 to trust an `X-Forwarded-Email` header unconditionally, which is spoofable by
 any client when there's no proxy actually stripping it (there wasn't, at the
 time). That header is now ignored unless `STUDIO_TRUST_PROXY_AUTH=true` is
-explicitly set — which currently is **not** set, deliberately (see the open
-question below).
+explicitly set — now set on the live resource (see the "Resolved" section
+below for why).
 
 ## Redirect URI — done, verified live (2026-08-06)
 
@@ -62,29 +62,29 @@ question below).
 client above. Confirmed both the redirect completing (no more
 `redirect_uri_mismatch`) and a real login succeeding, via oauth2-proxy's
 container logs: `[AuthSuccess] Authenticated via OAuth2: Session{email:
-charles@freshcontext.ai ...}`. `/api/*` + `/healthz` still correctly bypass
-it (bearer-token-gated); spoofed `X-Forwarded-Email` still correctly
-rejected on `/api/*`.
+charles@freshcontext.ai ...}`.
 
-## Open question, not decided unilaterally
+## Resolved: browser sessions now actually work, not just the login (2026-08-06)
 
-`/api/*` skips oauth2-proxy entirely (by design — it's the machine/MCP door).
-That means a browser user who successfully logs in with Google still needs to
-**also** paste the shared `STUDIO_BEARER_TOKEN` into Studio's "access token"
-field to make any API-backed UI action (Generate, Gallery, Feedback...) work —
-Google login alone gets you the app shell, not a working session. This was
-already true before oauth2-proxy existed (the UI has always called `/api/*`
-for everything) and is a real gap between the code's own comment ("Google
-login handles this in production") and what `docker-compose.yml`'s
-skip-auth-routes actually does. Two ways to close it, both real changes, not
-done here:
-- Make oauth2-proxy also gate `/api/*`, and have the app trust its
-  `X-Forwarded-Email` for browser sessions specifically (would need something
-  smarter than a path-based skip — oauth2-proxy doesn't support "skip only if
-  no Authorization header" out of the box).
-- Or: keep the dual gate as normal/expected for an internal tool, and just
-  make sure every real user is handed the shared token alongside their Google
-  access.
+The gap above was real, not theoretical — a real logged-in user (you) hit
+"unauthorized" on every page. Fixed by making `/api/*` go through
+oauth2-proxy like everything else (`OAUTH2_PROXY_SKIP_AUTH_ROUTES` is now
+just `^/healthz`), with `STUDIO_TRUST_PROXY_AUTH=true` set on Studio so it
+trusts oauth2-proxy's `X-Forwarded-Email` once a real session is behind it.
+The machine/MCP door moved to oauth2-proxy's own htpasswd mechanism (a
+`studio-mcp` service account, password = the same `STUDIO_BEARER_TOKEN`)
+instead of a route that skipped auth outright — `mcp/server.js` now sends
+Basic auth for that door and `X-Studio-Token` for the app's own check (see
+commit `762311f`).
+
+Verified via curl (can't click through a real Google login myself):
+no-auth → 302 to Google (not a raw 401 anymore); spoofed
+`X-Forwarded-Email` alone → still 302 (oauth2-proxy's own session/htpasswd
+check gates it now, not just the app); wrong htpasswd password → 302;
+correct Basic auth + `X-Studio-Token` → 200 with real data.
+**Not yet verified**: an actual browser, actually logged in via Google,
+successfully calling Generate/Gallery/Feedback without pasting anything.
+That needs a real `@freshcontext.ai` login — please confirm.
 
 ## A2 — scope the DB role (separate, optional hardening — unchanged from before)
 
