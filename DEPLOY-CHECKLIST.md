@@ -1,10 +1,9 @@
 # Studio deploy checklist — status (A1/A2)
 
-Coolify CLI + SSH access to the droplet turned out to be available this
-session (contrary to the note that used to be here) — most of A1 is done.
-One step is a hard human-only requirement (Google Cloud Console has no API
-for creating/editing a generic OAuth 2.0 web client), and A2 is a separate,
-optional hardening step still pending.
+A1 is done and verified end to end, including a real Google login
+(`charles@freshcontext.ai`, confirmed via oauth2-proxy's own
+`[AuthSuccess]` log line, 2026-08-06). A2 is a separate, optional
+hardening step still pending.
 
 ## Done (2026-08-05, live on studio.freshcontext.ai)
 
@@ -57,19 +56,15 @@ time). That header is now ignored unless `STUDIO_TRUST_PROXY_AUTH=true` is
 explicitly set — which currently is **not** set, deliberately (see the open
 question below).
 
-## One step left that genuinely needs you
+## Redirect URI — done, verified live (2026-08-06)
 
-**Add `https://studio.freshcontext.ai/oauth2/callback` as an Authorized
-redirect URI** on the existing OAuth client above, in Google Cloud Console
-(APIs & Services → Credentials → that client → Authorized redirect URIs →
-Add URI). This is the one piece with no API: Google doesn't expose OAuth
-client editing for a standard "Web application" client type through `gcloud`
-or any other CLI — Console-only, by design on Google's end.
-
-Until that URI is added, hitting `https://studio.freshcontext.ai/` redirects
-to Google correctly but Google will reject the callback with
-`redirect_uri_mismatch`. Everything else (the redirect itself, `/api/*` with
-the bearer token, `/healthz`) already works today — verified live.
+`https://studio.freshcontext.ai/oauth2/callback` is registered on the
+client above. Confirmed both the redirect completing (no more
+`redirect_uri_mismatch`) and a real login succeeding, via oauth2-proxy's
+container logs: `[AuthSuccess] Authenticated via OAuth2: Session{email:
+charles@freshcontext.ai ...}`. `/api/*` + `/healthz` still correctly bypass
+it (bearer-token-gated); spoofed `X-Forwarded-Email` still correctly
+rejected on `/api/*`.
 
 ## Open question, not decided unilaterally
 
