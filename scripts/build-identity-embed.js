@@ -115,8 +115,9 @@ function buildIdentityEmbed({
 
   const scopedCss = scopeBlock(css);
 
-  fs.writeFileSync(outputHtml, `<style>\n${scopedCss}\n</style>\n<div class="identity-view">\n${body.trim()}\n</div>\n`);
-  fs.writeFileSync(outputJs, js.trim() + '\n');
+  const html = `<style>\n${scopedCss}\n</style>\n<div class="identity-view">\n${body.trim()}\n</div>\n`;
+  fs.writeFileSync(outputHtml, html.replace(/[ \t]+$/gm, ''));
+  fs.writeFileSync(outputJs, (js.trim() + '\n').replace(/[ \t]+$/gm, ''));
 
   console.log(`identity-embed.html  ${(fs.statSync(outputHtml).size / 1024 / 1024).toFixed(2)}MB`);
   console.log(`identity-embed.js    ${fs.statSync(outputJs).size} bytes`);
