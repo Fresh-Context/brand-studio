@@ -32,7 +32,18 @@ const { ListToolsRequestSchema, CallToolRequestSchema } = require('@modelcontext
 
 const API = (process.env.STUDIO_API_URL || 'http://localhost:3440').replace(/\/$/, '');
 const TOKEN = process.env.STUDIO_BEARER_TOKEN || '';
-const authHeaders = TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {};
+// Two independent doors this satisfies:
+//   1. oauth2-proxy's htpasswd door (prod only — see docker-compose.yml):
+//      Basic auth, username "studio-mcp", password = this same token. A local
+//      dev server with no oauth2-proxy in front just ignores this header.
+//   2. The app's own requireBearer: reads X-Studio-Token specifically (not
+//      Authorization, which the Basic-auth scheme above already claims) so
+//      both doors can be satisfied by one request without one clobbering
+//      the other.
+const authHeaders = TOKEN ? {
+  Authorization: `Basic ${Buffer.from(`studio-mcp:${TOKEN}`).toString('base64')}`,
+  'X-Studio-Token': TOKEN,
+} : {};
 
 async function apiGet(p) {
   const r = await fetch(API + p, { headers: authHeaders });
