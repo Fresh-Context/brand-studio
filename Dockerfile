@@ -13,7 +13,7 @@ COPY . .
 ENV PORT=3440
 EXPOSE 3440
 
-# The identity embed is generated at start from the mounted library
-# (STUDIO_LIBRARY_DIR/brand-guideline/whoweare.html). Non-fatal if the volume
-# isn't populated yet — the Identity tab is empty until the first library sync.
-CMD ["sh", "-c", "node scripts/build-identity-embed.js || echo '[start] identity embed skipped (library not populated yet)'; exec node server.js"]
+# The checked-in identity embed keeps the Identity tab available on a fresh
+# deployment. When the mounted library contains whoweare.html, startup
+# rebuilds the embed so the volume remains the source of truth.
+CMD ["sh", "-c", "node scripts/build-identity-embed.js || echo '[start] identity embed unavailable'; exec node server.js"]

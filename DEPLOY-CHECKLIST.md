@@ -16,12 +16,12 @@ hardening step still pending.
       Coolify's env vars for this app, retrievable via `coolify app env list
       h6z4e3i9e53yf6tbowrzsu0i -s`, not written anywhere in this repo).
 - [x] **Persistent volume** (`studio-data`, mounted at `/app/data`) for
-      `STUDIO_GENERATED_DIR`/`STUDIO_REFERENCES_DIR` — there was none before;
-      anything generated through this container was ephemeral and lost on
-      every restart. `STUDIO_LIBRARY_DIR` still has no real content (see Known
-      gaps below) — the defaults already resolve correctly under the mounted
-      volume once content exists there, no extra config needed when that day
-      comes.
+      `STUDIO_GENERATED_DIR`/`STUDIO_REFERENCES_DIR`/`STUDIO_LIBRARY_DIR`.
+      On 2026-08-06 the production volume was seeded with
+      `library/brand-guideline/whoweare.html` and
+      `library/brand-guidelines/*.md`; the Identity and Voice & Tone tabs now
+      have their required content after restart. The image also carries a
+      checked-in Identity fallback for a fresh volume.
 - [x] **oauth2-proxy actually in front of the browser door**, as its own
       Coolify resource (`studio-oauth2-proxy`, `dockerimage` build pack,
       `quay.io/oauth2-proxy/oauth2-proxy:v7.6.0`) rather than converting
@@ -97,8 +97,8 @@ session now genuinely carries through to every API call the UI makes.
 4. Exercise every tab end to end. Fallback pre-decided in the plan: keep the
    service-role key if the scoped JWT fights `supabase-js`.
 
-## Known gaps, unchanged
+## Current notes
 
-- `STUDIO_LIBRARY_DIR` has no real `brand-marketing` content anywhere this
-  session could find. The Identity tab fails gracefully (see commit `7f8870f`)
-  instead of crashing, but stays empty until someone provides that content.
+- The initial production library seed covers Identity and Voice & Tone. Keep
+  the `studio-data` volume populated when synchronizing additional
+  `brand-marketing` assets.

@@ -7,15 +7,19 @@ Standalone app in the monorepo (its own package + deploy). Depends only on Supab
 ## Run locally
 
 ```bash
-cd apps/studio
+cd brand-studio
 cp .env.example .env      # fill in SUPABASE_*, OPENAI_API_KEY, a STUDIO_BEARER_TOKEN
 npm install
-npm run dev               # http://localhost:3440 (predev builds the identity embed)
+npm run dev               # http://localhost:3440
 ```
 
-`npm run build` / `predev` / `prestart` run `scripts/build-identity-embed.js`, which turns `brand-marketing/brand-guideline/whoweare.html` into the natively-embedded, spike-stripped identity front door (`public/identity-embed.*`, git-ignored).
+`npm run build` / `predev` / `prestart` rebuild the native Identity embed from
+`STUDIO_LIBRARY_DIR/brand-guideline/whoweare.html` when that library is
+available. The checked-in `public/identity-embed.*` assets are used on a fresh
+deployment until the library volume is seeded.
 
-Runs alongside `local-server` (:3430) during the transition. Storage defaults point at the existing `local-server/studio/{generated,references}` + `brand-marketing/` so nothing is copied.
+Storage defaults to `data/generated`, `data/references`, and `data/library`
+inside this checkout. Production mounts those paths under `/app/data`.
 
 ## Surface
 

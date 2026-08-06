@@ -4,8 +4,6 @@ node_modules/
 # launchd/manual-run logs — never repo content, see src/lib/storage.js.
 data/
 logs/
-# Generated from brand-marketing/brand-guideline/whoweare.html by
-# scripts/build-identity-embed.js (runs on npm run build / predev / prestart).
-public/identity-embed.html
-public/identity-embed.js
+# The bundled Identity fallback is checked in; regenerate it when the source
+# artifact changes. Local data and generated logs remain ignored above.
 __pycache__/
