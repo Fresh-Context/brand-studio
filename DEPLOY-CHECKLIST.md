@@ -82,9 +82,10 @@ no-auth → 302 to Google (not a raw 401 anymore); spoofed
 `X-Forwarded-Email` alone → still 302 (oauth2-proxy's own session/htpasswd
 check gates it now, not just the app); wrong htpasswd password → 302;
 correct Basic auth + `X-Studio-Token` → 200 with real data.
-**Not yet verified**: an actual browser, actually logged in via Google,
-successfully calling Generate/Gallery/Feedback without pasting anything.
-That needs a real `@freshcontext.ai` login — please confirm.
+**Confirmed live** (2026-08-06, via server logs): `charles@freshcontext.ai`
+browsing normally — no pasted token — got real 200s from `/api/taxonomy`,
+`/api/tools`, `/api/assets`, `/api/feedback`, `/api/brand`. A real Google
+session now genuinely carries through to every API call the UI makes.
 
 ## A2 — scope the DB role (separate, optional hardening — unchanged from before)
 
