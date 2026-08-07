@@ -15,10 +15,11 @@ async function main() {
   const endpoint = `${config.apiUrl}/mcp`;
   const initialize = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'studio-hosted-smoke', version: '0.2.0' } } });
 
-  const unauthenticated = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: initialize });
+  const authProbeHeaders = { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream' };
+  const unauthenticated = await fetch(endpoint, { method: 'POST', headers: authProbeHeaders, redirect: 'manual', body: initialize });
   assert.equal(unauthenticated.status, 401, 'missing credentials must return 401');
   assert.equal(unauthenticated.headers.get('location'), null, 'machine auth must not redirect to Google');
-  const invalid = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer invalid-studio-token' }, body: initialize });
+  const invalid = await fetch(endpoint, { method: 'POST', headers: { ...authProbeHeaders, Authorization: 'Bearer invalid-studio-token' }, redirect: 'manual', body: initialize });
   assert.equal(invalid.status, 401, 'invalid credentials must return 401');
   assert.equal(invalid.headers.get('location'), null, 'invalid machine auth must not redirect to Google');
 
