@@ -1,7 +1,7 @@
 #!/bin/bash
 # Fresh Context Studio — start script.
 # Used by launchd (com.freshcontext.studio.plist) and for manual start.
-# Runs the apps/studio API on port 3440 (the Logger uses 3430; both run side-by-side).
+# Runs the standalone brand-studio API on port 3440 (the companion app uses 3430).
 
 cd "$(dirname "$0")"
 

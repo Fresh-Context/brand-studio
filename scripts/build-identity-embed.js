@@ -14,7 +14,7 @@
 // works because the content lives in the main document (the app rail is fixed and
 // the window scrolls).
 //
-//   cd apps/studio && node scripts/build-identity-embed.js
+//   cd brand-studio && node scripts/build-identity-embed.js
 
 const fs = require('fs');
 const path = require('path');

@@ -30,10 +30,7 @@ hardening step still pending.
       tested path; a second resource + a stable Docker network alias
       (`studio-internal`, set on the Studio app) is). `studio.freshcontext.ai`
       now points at oauth2-proxy; Studio itself has no public domain.
-      Only `/healthz` skips oauth2-proxy (public liveness probe); everything
-      else, including `/api/*`, requires either a Google login or the
-      machine door's htpasswd credential — see the "Resolved" section below
-      for how that evolved from the original bearer-only design.
+- [x] **Route boundary**: `/healthz` is public liveness. The browser UI and `/files/*` stay behind the separate OAuth proxy; `/api/*` and `/mcp` are passed to Studio, which validates its own bearer machine credential. `/mcp` never depends on Google login or forwarded identity headers.
 - [x] **Reused the existing Juice OAuth client**
       (`942872456019-hhimr6j86rnelte55e5bhd313ghaadrl.apps.googleusercontent.com`)
       rather than creating a new one — this matches the *original* documented
@@ -64,28 +61,18 @@ client above. Confirmed both the redirect completing (no more
 container logs: `[AuthSuccess] Authenticated via OAuth2: Session{email:
 charles@freshcontext.ai ...}`.
 
-## Resolved: browser sessions now actually work, not just the login (2026-08-06)
+## Resolved: browser and machine doors are independent (2026-08-07)
 
-The gap above was real, not theoretical — a real logged-in user (you) hit
-"unauthorized" on every page. Fixed by making `/api/*` go through
-oauth2-proxy like everything else (`OAUTH2_PROXY_SKIP_AUTH_ROUTES` is now
-just `^/healthz`), with `STUDIO_TRUST_PROXY_AUTH=true` set on Studio so it
-trusts oauth2-proxy's `X-Forwarded-Email` once a real session is behind it.
-The machine/MCP door moved to oauth2-proxy's own htpasswd mechanism (a
-`studio-mcp` service account, password = the same `STUDIO_BEARER_TOKEN`)
-instead of a route that skipped auth outright — `mcp/server.js` now sends
-Basic auth for that door and `X-Studio-Token` for the app's own check (see
-commit `762311f`).
+The production topology is now explicit: the OAuth proxy owns the human browser session, while Studio owns the machine boundary. `/api/*` may accept a trusted OAuth-proxy identity for the browser UI when `STUDIO_TRUST_PROXY_AUTH=true`, or `Authorization: Bearer <STUDIO_BEARER_TOKEN>` for API/MCP clients. `POST /mcp` accepts only the bearer credential and does not trust `X-Forwarded-Email`, `X-Auth-Request-Email`, `X-Studio-Token`, or browser cookies.
 
-Verified via curl (can't click through a real Google login myself):
-no-auth → 302 to Google (not a raw 401 anymore); spoofed
-`X-Forwarded-Email` alone → still 302 (oauth2-proxy's own session/htpasswd
-check gates it now, not just the app); wrong htpasswd password → 302;
-correct Basic auth + `X-Studio-Token` → 200 with real data.
-**Confirmed live** (2026-08-06, via server logs): `charles@freshcontext.ai`
-browsing normally — no pasted token — got real 200s from `/api/taxonomy`,
-`/api/tools`, `/api/assets`, `/api/feedback`, `/api/brand`. A real Google
-session now genuinely carries through to every API call the UI makes.
+The hosted MCP contract is `POST https://studio.freshcontext.ai/mcp` with `Authorization: Bearer <machine credential>`. Missing or invalid credentials return HTTP 401 with `WWW-Authenticate: Bearer`; they do not redirect to Google. Signed `/mcp/download/...` links use a short-lived HMAC token and do not embed the bearer credential.
+
+Verified in the no-spend test suite and local hosted smoke:
+
+- no credentials → deterministic 401 and no `Location` header;
+- valid bearer → MCP initialize, `tools/list`, read-only tool calls;
+- tool output → no bearer, authorization header, or internal absolute filesystem path;
+- request IDs → response header, server log, and API `X-Request-ID` correlation.
 
 ## A2 — scope the DB role (separate, optional hardening — unchanged from before)
 

@@ -6,7 +6,7 @@
 // this fetches GET /api/brand/ambient (the same render the endpoint serves
 // live) and writes it to <repo>/brand/ambient.md, which CLAUDE.md @-imports.
 //
-// Usage: node apps/studio/scripts/render-ambient.js
+// Usage: node brand-studio/scripts/render-ambient.js
 
 const fs = require('fs');
 const path = require('path');

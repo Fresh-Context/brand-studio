@@ -6,15 +6,21 @@
 // OpenAI + image files only, so it is cloud-portable (unlike the local-server
 // monolith).
 
-require('dotenv').config();
-
 const path = require('path');
 const express = require('express');
+const dotenv = require('dotenv');
 const { mountApi } = require('./src/routes');
 const { dirs } = require('./src/lib/storage');
+const { mountMcp } = require('./mcp/http');
+
+dotenv.config({ path: path.join(__dirname, '.env') });
 
 const PORT = parseInt(process.env.PORT, 10) || 3440;
 const app = express();
+
+// Hosted MCP is mounted before the general JSON parser so unauthenticated
+// requests fail at the machine boundary before request bodies are processed.
+const { config: mcpConfig } = mountMcp(app);
 app.use(express.json({ limit: '12mb' }));
 
 // Liveness — unauthenticated (for Coolify health checks).
@@ -34,9 +40,12 @@ app.use('/files/library', express.static(d.library));
 // oauth2-proxy (Google @freshcontext.ai); the UI then calls /api same-origin.
 app.use('/', express.static(path.join(__dirname, 'public')));
 
-app.listen(PORT, () => {
+const httpServer = app.listen(PORT, () => {
   console.log(`Fresh Context Studio API → http://localhost:${PORT}`);
   console.log(`  health:  GET /healthz`);
   console.log(`  api:     GET /api/status  ·  /api/tools  ·  /api/assets  ·  /api/jobs  ·  POST /api/generate`);
+  console.log(`  mcp:     POST /mcp (machine bearer)`);
   console.log(`  files:   /files/{generated,references,library}/*`);
 });
+httpServer.requestTimeout = mcpConfig.timeoutMs;
+httpServer.headersTimeout = mcpConfig.timeoutMs + 10_000;

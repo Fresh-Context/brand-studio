@@ -1,7 +1,7 @@
 'use strict';
 
 // Seed studio_taxonomy from src/taxonomy.js. Idempotent (upsert on kind,value).
-//   cd apps/studio && node scripts/seed-taxonomy.js
+//   cd brand-studio && node scripts/seed-taxonomy.js
 
 require('dotenv').config();
 const db = require('../src/db');

@@ -1,253 +1,71 @@
 #!/usr/bin/env node
 'use strict';
 
-// Fresh Context Studio — MCP server (stdio).
+// Fresh Context Studio MCP server.
 //
-// The machine door. It is a THIN CLIENT of the same Studio HTTP API the web UI
-// calls (STUDIO_API_URL, default http://localhost:3440), authenticated with the
-// bearer token. That is the whole point of the "same shape, both doors" design:
-// a human searching in the browser and Claude calling studio_search_assets hit
-// the identical endpoint and get the identical results — no duplicated logic.
-//
-// Tools:
-//   - studio_search_assets(query, form?, source?, kind?, limit?)  → GET /api/assets?q=
-//   - studio_get_asset(id)                                        → GET /api/assets/:id
-//   - studio_list_tools(kind?)                                    → GET /api/tools
-//   - studio_list_taxonomy(kind?)                                 → GET /api/taxonomy
-//   - studio_generate_image(tool_id, prompt, aspect?, variants?)  → POST /api/generate
-//   - studio_record_feedback(asset_id, verdict, note?, tags?)     → POST /api/assets/:id/feedback
-//   - studio_list_feedback(status?, verdict?, tool_id?, limit?)   → GET /api/feedback
-//   - studio_resolve_feedback(id, status, disposition?)           → PATCH /api/feedback/:id
-//
-// Env (from apps/studio/.env): STUDIO_API_URL, STUDIO_BEARER_TOKEN.
-// Registered in .mcp.json at the repo root. In production point STUDIO_API_URL at
-// https://studio.freshcontext.ai and use its bearer.
+// This file is only the local stdio transport. Tool contracts and API dispatch
+// live in contract.js and dispatch.js so the hosted /mcp transport cannot drift.
+// The API URL is selected from STUDIO_API_URL or brand-studio/.env; the bearer
+// credential is never logged or included in tool content.
 
-const path = require('path');
-require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
-
+const crypto = require('node:crypto');
 const { Server } = require('@modelcontextprotocol/sdk/server/index.js');
 const { StdioServerTransport } = require('@modelcontextprotocol/sdk/server/stdio.js');
 const { ListToolsRequestSchema, CallToolRequestSchema } = require('@modelcontextprotocol/sdk/types.js');
+const { loadStudioEnv, readConfig } = require('./config');
+const { createDispatcher } = require('./dispatch');
+const { errorResult, McpError } = require('./errors');
+const { SERVER_INSTRUCTIONS, TOOLS } = require('./contract');
 
-const API = (process.env.STUDIO_API_URL || 'http://localhost:3440').replace(/\/$/, '');
-const TOKEN = process.env.STUDIO_BEARER_TOKEN || '';
-// Two independent doors this satisfies:
-//   1. oauth2-proxy's htpasswd door (prod only — see docker-compose.yml):
-//      Basic auth, username "studio-mcp", password = this same token. A local
-//      dev server with no oauth2-proxy in front just ignores this header.
-//   2. The app's own requireBearer: reads X-Studio-Token specifically (not
-//      Authorization, which the Basic-auth scheme above already claims) so
-//      both doors can be satisfied by one request without one clobbering
-//      the other.
-const authHeaders = TOKEN ? {
-  Authorization: `Basic ${Buffer.from(`studio-mcp:${TOKEN}`).toString('base64')}`,
-  'X-Studio-Token': TOKEN,
-} : {};
-
-async function apiGet(p) {
-  const r = await fetch(API + p, { headers: authHeaders });
-  if (!r.ok) throw new Error(`GET ${p} → ${r.status} ${(await r.text()).slice(0, 200)}`);
-  return r.json();
-}
-async function apiPost(p, body) {
-  const r = await fetch(API + p, { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders }, body: JSON.stringify(body) });
-  if (!r.ok) throw new Error(`POST ${p} → ${r.status} ${(await r.text()).slice(0, 200)}`);
-  return r.json();
-}
-async function apiPatch(p, body) {
-  const r = await fetch(API + p, { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...authHeaders }, body: JSON.stringify(body) });
-  if (!r.ok) throw new Error(`PATCH ${p} → ${r.status} ${(await r.text()).slice(0, 200)}`);
-  return r.json();
-}
-const fileUrl = (sp) => `${API}/files/${sp.split('/').map(encodeURIComponent).join('/')}`;
-
-// ── Tools ────────────────────────────────────────────────────────────────────
-const TOOLS = [
-  {
-    name: 'studio_search_assets',
-    description: 'Semantic search across the Fresh Context brand asset catalog (generated Studio outputs + the brand-marketing library). Returns ranked assets with form, caption, tags, and a file URL. Use to find existing on-brand assets before generating new ones.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        query: { type: 'string', description: 'Natural-language search, e.g. "citrus cross-section", "deployment arrows".' },
-        form: { type: 'string', description: 'Optional filter to one form (e.g. network, citrus, hedcut, thumbnail). See studio_list_taxonomy.' },
-        source: { type: 'string', enum: ['generated', 'library'], description: 'Optional: only our generations, or only the library.' },
-        kind: { type: 'string', enum: ['image', 'motion', 'video'], description: 'Optional asset kind filter.' },
-        tool_id: { type: 'string', description: 'Optional: only assets generated by this shot type (studio_list_tools id). Only matches generated assets.' },
-        include_hidden: { type: 'boolean', description: 'Include assets a negative feedback verdict removed from the default gallery view. Default false.' },
-        limit: { type: 'integer', minimum: 1, maximum: 50, default: 20 },
-      },
-      required: ['query'],
-    },
-  },
-  {
-    name: 'studio_brand_context',
-    description: 'Fresh Context brand rules from the published canon (compiled from the vault, with provenance). Call BEFORE writing market-facing copy when you need situational guidance beyond the ambient rules: pass stage (tof|mof|bof) for funnel-stage tone/register, or kind to browse one dimension (voice, style, lexicon, format, register). No args = the full canon.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        stage: { type: 'string', enum: ['tof', 'mof', 'bof'], description: 'Funnel stage: returns that stage\'s register rules plus the globals.' },
-        kind: { type: 'string', enum: ['voice', 'style', 'lexicon', 'format', 'register', 'routing', 'principle'], description: 'Optional filter to one rule dimension.' },
-      },
-    },
-  },
-  { name: 'studio_get_asset', description: 'Fetch one asset by id (caption, form, tags, provenance, file URL).', inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } },
-  {
-    name: 'studio_set_asset_hidden',
-    description: 'Show or hide an asset in the default gallery view. Negative feedback hides an asset automatically; use this to restore one during /studio-crit triage if a negative item is dismissed as a false positive (the render was actually fine).',
-    inputSchema: { type: 'object', properties: { id: { type: 'string' }, hidden: { type: 'boolean' } }, required: ['id', 'hidden'] },
-  },
-  { name: 'studio_list_tools', description: 'List Studio generation tools (shot types). Filter by kind (image).', inputSchema: { type: 'object', properties: { kind: { type: 'string' } } } },
-  { name: 'studio_list_taxonomy', description: 'List the controlled vocabulary (forms + tags) used for asset search/classification.', inputSchema: { type: 'object', properties: { kind: { type: 'string', enum: ['form', 'tag'] } } } },
-  {
-    name: 'studio_generate_image',
-    description: 'Generate a new on-brand image with a Studio shot type (gpt-image-2). Synchronous (20-60s). Returns the completed job with result file URLs; the output is added to the gallery. Each call is a paid generation — use studio_search_assets first to avoid re-making what exists.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        tool_id: { type: 'string', description: 'Shot type id (from studio_list_tools).' },
-        prompt: { type: 'string', description: 'The specific subject; the shot type\'s brand register is prepended automatically.' },
-        aspect: { type: 'string', enum: ['1:1', '16:9', '9:16', '4:3', '3:4'] },
-        variants: { type: 'integer', minimum: 1, maximum: 4, default: 2 },
-      },
-      required: ['tool_id', 'prompt'],
-    },
-  },
-  {
-    name: 'studio_record_feedback',
-    description: 'Record a brand judgment on a gallery asset (👍/👎 + why). Captured into the studio_feedback queue for /studio-crit triage — it changes upstream generation rules, it never regenerates the asset. A positive verdict also stars the asset. Use after reviewing generated variants: record what is exemplary and what is off-brand, with the reason.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        asset_id: { type: 'string', description: 'Asset id (from studio_search_assets / a generate job).' },
-        verdict: { type: 'string', enum: ['positive', 'negative'] },
-        note: { type: 'string', description: 'Why — the signal the triage agent works from. Be specific about what is right/wrong.' },
-        tags: { type: 'array', items: { type: 'string' }, description: 'Critique tags (studio_list_taxonomy kind=critique), e.g. empty-nodes, marker-line, palette-drift.' },
-      },
-      required: ['asset_id', 'verdict'],
-    },
-  },
-  {
-    name: 'studio_list_feedback',
-    description: 'List the feedback queue / audit log. Default: open items. Each row embeds its asset (title, form, provenance → tool). Use at the start of /studio-crit triage, or before generating with a tool to see its open complaints.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        status: { type: 'string', enum: ['open', 'resolved', 'dismissed'], description: 'Omit for all statuses.' },
-        verdict: { type: 'string', enum: ['positive', 'negative'] },
-        tool_id: { type: 'string', description: 'Only feedback on assets generated by this tool.' },
-        asset_id: { type: 'string' },
-        limit: { type: 'integer', minimum: 1, maximum: 500, default: 100 },
-      },
-    },
-  },
-  {
-    name: 'studio_resolve_feedback',
-    description: 'Triage write-back (used by /studio-crit after the human approves the change digest): set status resolved|dismissed and record the disposition — the decision record that makes the Feedback tab an audit log. disposition: {level: tool|register|belief|none, decisions: [{action, target, detail}]}.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        id: { type: 'string', description: 'Feedback row id.' },
-        status: { type: 'string', enum: ['resolved', 'dismissed', 'open'] },
-        disposition: { type: 'object', description: 'Decision record: {level, decisions:[{action, target, detail}], session?}.' },
-      },
-      required: ['id', 'status'],
-    },
-  },
-];
-
-function fmtAssets(assets) {
-  if (!assets.length) return 'No matching assets.';
-  return assets.map((a) => {
-    const sim = a.similarity != null ? ` (${(a.similarity * 100).toFixed(0)}%)` : '';
-    return `- [${a.form || '—'}]${sim} ${a.caption || a.title || ''}\n  id=${a.id} · ${fileUrl(a.storage_path)}`;
-  }).join('\n');
+function createMcpServer({ dispatcher }) {
+  if (!dispatcher || typeof dispatcher.call !== 'function') throw new Error('MCP dispatcher is required.');
+  const server = new Server(
+    { name: 'fresh-context-studio', version: '0.2.0' },
+    { capabilities: { tools: {} }, instructions: SERVER_INSTRUCTIONS },
+  );
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
+  server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
+    try {
+      const requestId = extra && extra.requestId ? String(extra.requestId) : crypto.randomUUID();
+      return await dispatcher.call(request.params.name, request.params.arguments || {}, { requestId });
+    } catch (error) {
+      return errorResult(error instanceof McpError ? error : new McpError('UPSTREAM_UNAVAILABLE'));
+    }
+  });
+  return server;
 }
 
-async function call(name, args) {
-  switch (name) {
-    case 'studio_search_assets': {
-      const qs = new URLSearchParams({ q: args.query, limit: String(args.limit || 20) });
-      if (args.form) qs.set('form', args.form);
-      if (args.source) qs.set('source', args.source);
-      if (args.kind) qs.set('kind', args.kind);
-      if (args.tool_id) qs.set('tool_id', args.tool_id);
-      if (args.include_hidden) qs.set('include_hidden', 'true');
-      const assets = await apiGet('/api/assets?' + qs.toString());
-      return { content: [{ type: 'text', text: fmtAssets(assets) }] };
-    }
-    case 'studio_brand_context': {
-      const qs = new URLSearchParams();
-      if (args.stage) qs.set('scope', args.stage);
-      if (args.kind) qs.set('kind', args.kind);
-      const rules = await apiGet('/api/brand/rules' + (qs.toString() ? '?' + qs.toString() : ''));
-      if (!rules.length) return { content: [{ type: 'text', text: 'No published brand rules (run /brand-sync).' }] };
-      const text = rules.map((x) => {
-        const src = x.source_title ? `  [${x.source_title}]` : '';
-        return `- (${x.kind}${x.scope !== 'global' ? '/' + x.scope : ''}) ${x.rule}${x.guidance ? '\n  ↳ ' + x.guidance : ''}${src}`;
-      }).join('\n');
-      return { content: [{ type: 'text', text }] };
-    }
-    case 'studio_get_asset': {
-      const a = await apiGet('/api/assets/' + encodeURIComponent(args.id));
-      return { content: [{ type: 'text', text: JSON.stringify({ ...a, file_url: fileUrl(a.storage_path) }, null, 2) }] };
-    }
-    case 'studio_set_asset_hidden': {
-      const a = await apiPost(`/api/assets/${encodeURIComponent(args.id)}/hidden`, { hidden: !!args.hidden });
-      return { content: [{ type: 'text', text: `Asset ${a.id} hidden=${a.hidden}.` }] };
-    }
-    case 'studio_list_tools': {
-      const tools = await apiGet('/api/tools' + (args.kind ? '?kind=' + encodeURIComponent(args.kind) : ''));
-      return { content: [{ type: 'text', text: tools.map((t) => `- ${t.name}  (id=${t.id}, kind=${t.kind}, aspect=${t.default_aspect_ratio})`).join('\n') }] };
-    }
-    case 'studio_list_taxonomy': {
-      const tax = await apiGet('/api/taxonomy' + (args.kind ? '?kind=' + encodeURIComponent(args.kind) : ''));
-      return { content: [{ type: 'text', text: tax.map((t) => `${t.kind}: ${t.value} — ${t.description}`).join('\n') }] };
-    }
-    case 'studio_generate_image': {
-      const job = await apiPost('/api/generate', { tool_id: args.tool_id, prompt: args.prompt, aspect: args.aspect, variants: args.variants });
-      const urls = (job.result_paths || []).map(fileUrl);
-      return { content: [{ type: 'text', text: `Generated job ${job.id} (${job.status}).\n${urls.join('\n')}` }] };
-    }
-    case 'studio_record_feedback': {
-      const fb = await apiPost(`/api/assets/${encodeURIComponent(args.asset_id)}/feedback`, { verdict: args.verdict, note: args.note, tags: args.tags });
-      return { content: [{ type: 'text', text: `Captured ${fb.verdict} feedback ${fb.id} (status: ${fb.status}). Triage via /studio-crit.` }] };
-    }
-    case 'studio_list_feedback': {
-      const qs = new URLSearchParams({ limit: String(args.limit || 100) });
-      if (args.status) qs.set('status', args.status);
-      if (args.verdict) qs.set('verdict', args.verdict);
-      if (args.tool_id) qs.set('tool_id', args.tool_id);
-      if (args.asset_id) qs.set('asset_id', args.asset_id);
-      const rows = await apiGet('/api/feedback?' + qs.toString());
-      if (!rows.length) return { content: [{ type: 'text', text: 'No feedback matching.' }] };
-      const text = rows.map((f) => {
-        const a = f.asset || {}; const p = a.provenance || {};
-        const disp = f.disposition ? ` | disposition: ${JSON.stringify(f.disposition)}` : '';
-        return `- [${f.verdict}/${f.status}] ${(f.created_at || '').slice(0, 10)} "${a.title || a.form || 'asset'}"${p.tool ? ` (tool: ${p.tool}, tool_id: ${p.tool_id})` : ''}\n  id=${f.id} · asset=${f.asset_id}${f.note ? `\n  why: ${f.note}` : ''}${(f.critique_tags || []).length ? `\n  tags: ${f.critique_tags.join(', ')}` : ''}${disp}`;
-      }).join('\n');
-      return { content: [{ type: 'text', text }] };
-    }
-    case 'studio_resolve_feedback': {
-      const fb = await apiPatch(`/api/feedback/${encodeURIComponent(args.id)}`, { status: args.status, disposition: args.disposition });
-      return { content: [{ type: 'text', text: `Feedback ${fb.id} → ${fb.status}${fb.disposition ? ` with disposition (${fb.disposition.level || 'n/a'})` : ''}.` }] };
-    }
-    default:
-      return { content: [{ type: 'text', text: `Unknown tool: ${name}` }], isError: true };
+async function assertApiReachable(config, fetchImpl = globalThis.fetch) {
+  if (typeof fetchImpl !== 'function') throw new Error('Fetch is unavailable in this Node runtime.');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), Math.min(config.timeoutMs, 10_000));
+  try {
+    const response = await fetchImpl(`${config.apiUrl}/healthz`, { signal: controller.signal });
+    if (!response.ok) throw new Error(`healthz returned HTTP ${response.status}`);
+  } catch (error) {
+    throw new Error(`Studio API is unreachable at ${config.apiUrl}. Start Studio or check STUDIO_API_URL.`);
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
-const server = new Server({ name: 'fresh-context-studio', version: '0.1.0' }, { capabilities: { tools: {} } });
-server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
-server.setRequestHandler(CallToolRequestSchema, async (req) => {
-  try { return await call(req.params.name, req.params.arguments || {}); }
-  catch (err) { return { content: [{ type: 'text', text: `Tool error: ${err.message}` }], isError: true }; }
-});
-
 async function main() {
+  loadStudioEnv();
+  const config = readConfig(process.env, { requireToken: true });
+  console.error(`[fresh-context-studio MCP] selected API URL: ${config.apiUrl}`);
+  await assertApiReachable(config);
+  const dispatcher = createDispatcher({ config, mode: 'stdio' });
+  const server = createMcpServer({ dispatcher });
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error(`[fresh-context-studio MCP] connected via stdio → API ${API}`);
+  console.error(`[fresh-context-studio MCP] connected via stdio → API ${config.apiUrl}`);
 }
-main().catch((err) => { console.error('[fresh-context-studio MCP] fatal:', err); process.exit(1); });
+
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(`[fresh-context-studio MCP] fatal: ${error.message || 'startup failed'}`);
+    process.exit(1);
+  });
+}
+
+module.exports = { assertApiReachable, createMcpServer, main };

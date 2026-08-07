@@ -1,78 +1,90 @@
-# Studio → Coolify deploy (M6)
+# Studio production deploy
 
-Target: `https://studio.freshcontext.ai`. Topology: **one Coolify docker-compose resource, two containers** - `oauth2-proxy` owns the domain (the human door, Google `@freshcontext.ai` only); the `studio` app is internal-only, with `/api/*` passed through OAuth-free because the app enforces its own bearer (the machine/MCP door). TLS is automatic via Coolify's proxy once DNS resolves.
+Target: `https://studio.freshcontext.ai`.
 
-Auth lives in three places - know which is which:
-- **I. Google Cloud Console** - the OAuth client (identity provider side).
-- **II. Coolify env vars** - the oauth2-proxy config (client id/secret, cookie secret, domain restriction) + the app secrets.
-- **III. Already in code** - `requireBearer` on `/api/*` (`src/lib/auth.js`); oauth2-proxy skips those routes so machines never touch Google.
+Production is two Coolify resources on one private network:
 
-## Phase 0 - VPS + DNS (you)
+1. **Studio** — the standalone `brand-studio` Node service, persistent generated/reference storage, internal-only upstream on port 3440.
+2. **OAuth proxy** — a separate `oauth2-proxy` resource owning the public domain and Google `@freshcontext.ai` browser door.
 
-1. Provision a VPS (4 GB RAM is plenty; Hetzner/DO). Note its IP.
-2. Install Coolify on it: `curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash`, then open the dashboard on port 8000 and create the admin account.
-3. DNS at the `freshcontext.ai` registrar: **A record `studio` → VPS IP**. (Optionally `coolify` → same IP for the dashboard.)
+The proxy passes `/healthz`, `/api/*`, and `/mcp*` to Studio. Studio enforces machine bearer authentication for the API and hosted MCP. `/mcp` never uses Google auth. UI and `/files/*` remain behind the browser OAuth policy. Set the proxy upstream timeout to at least 180 seconds so synchronous image generation is not killed by a shorter hop.
 
-## Phase I - Google OAuth client (you)
+## Required environment
 
-In [console.cloud.google.com](https://console.cloud.google.com) under the Workspace org:
+Set these in the Coolify environment/secret manager. Never commit them or place them in `.mcp.json`:
 
-1. APIs & Services → OAuth consent screen → **Internal** (Workspace-only; this alone blocks non-org accounts - the proxy's `EMAIL_DOMAINS` is belt-and-suspenders).
-2. APIs & Services → Credentials → Create Credentials → **OAuth client ID** → type **Web application**.
-3. Authorized redirect URI: `https://studio.freshcontext.ai/oauth2/callback` (exact).
-4. Keep the **client ID + client secret** for Phase III.
-
-## Phase II - Coolify resource
-
-1. New Project → Add Resource → **Docker Compose** → Git source `Fresh-Context/fresh-context` (install the Coolify GitHub App or add a deploy key).
-2. **Branch:** wherever this file lives when you deploy (currently `research/context-infrastructure`; repoint to `main` after merge).
-3. **Base directory:** `/apps/studio` · **Compose file:** `docker-compose.yml`.
-4. **Domain:** attach `https://studio.freshcontext.ai` to the **oauth2-proxy** service, port **4180**. Do not expose `studio` publicly.
-
-## Phase III - Environment variables (Coolify UI → the resource)
-
-| Var | Value |
+| Variable | Purpose |
 |---|---|
-| `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` | same values as `apps/studio/.env` (contextListener) |
-| `OPENAI_API_KEY` | same as local |
-| `STUDIO_BEARER_TOKEN` | **generate a NEW production token** - `openssl rand -hex 32`. Do not reuse the dev token. |
-| `OAUTH2_PROXY_CLIENT_ID` / `OAUTH2_PROXY_CLIENT_SECRET` | from Phase I |
-| `OAUTH2_PROXY_COOKIE_SECRET` | `openssl rand -base64 32 | tr -- '+/' '-_'` |
+| `SUPABASE_URL` / `SUPABASE_SERVICE_KEY` | Studio persistence (`contextListener`) |
+| `OPENAI_API_KEY` | gpt-image-2 generation and catalog indexing |
+| `STUDIO_BEARER_TOKEN` | Rotatable machine credential for `/api` and `/mcp` |
+| `STUDIO_DOWNLOAD_SIGNING_SECRET` | Optional dedicated HMAC secret; defaults to the bearer token when omitted |
+| `STUDIO_API_URL` | `https://studio.freshcontext.ai` |
+| `STUDIO_MCP_REQUEST_TIMEOUT_MS` | `180000` or longer |
+| `STUDIO_GENERATED_DIR` | `/data/generated` |
+| `STUDIO_REFERENCES_DIR` | `/data/references` |
+| `STUDIO_LIBRARY_DIR` | `/data/library` |
+| `OAUTH2_PROXY_CLIENT_ID` / `OAUTH2_PROXY_CLIENT_SECRET` | Google OAuth client |
+| `OAUTH2_PROXY_COOKIE_SECRET` | Rotated proxy session secret |
 
-Then **Deploy**. First build takes a few minutes; the identity tab stays empty until Phase IV.
+Generate a fresh machine credential and signing secret with the team's approved secret workflow. Rotate both together when the machine credential is replaced; existing signed links then expire effectively.
 
-## Phase IV - Populate the volume (one-time upload)
+## Studio resource
 
-The compose mounts one persistent volume at `/data` (`generated/`, `references/`, `library/`). From your laptop:
+1. Create a Coolify Docker resource from `Fresh-Context/brand-studio`.
+2. Use the checked-in `Dockerfile` and expose the container internally on port `3440`.
+3. Mount a persistent volume at `/data` for `generated/` and `references/`; mount the read-only brand library at `/data/library`.
+4. Configure the environment table above and deploy.
+5. Confirm the container health check reaches `GET /healthz`.
 
-```sh
-# find the volume's host path (run on the VPS)
-docker volume inspect <stack>_studio-data --format '{{.Mountpoint}}'
+The app starts from the checked-in Identity embed if the library is initially empty. After seeding the library, restart once so the embed can be rebuilt from `whoweare.html`.
 
-# then from the laptop (repo root):
-rsync -av --progress brand-marketing/            root@VPS:<mountpoint>/library/
-rsync -av --progress local-server/studio/generated/  root@VPS:<mountpoint>/generated/
-rsync -av --progress local-server/studio/references/ root@VPS:<mountpoint>/references/
+## OAuth proxy resource
+
+Run `quay.io/oauth2-proxy/oauth2-proxy:v7.6.0` (or a deliberately reviewed newer version) with:
+
+```text
+OAUTH2_PROXY_PROVIDER=google
+OAUTH2_PROXY_EMAIL_DOMAINS=freshcontext.ai
+OAUTH2_PROXY_UPSTREAMS=http://studio-internal:3440
+OAUTH2_PROXY_HTTP_ADDRESS=0.0.0.0:4180
+OAUTH2_PROXY_REDIRECT_URL=https://studio.freshcontext.ai/oauth2/callback
+OAUTH2_PROXY_SKIP_AUTH_ROUTES=^/(?:api/|mcp(?:/|$)|healthz$)
+OAUTH2_PROXY_UPSTREAM_TIMEOUT=180s
+OAUTH2_PROXY_REVERSE_PROXY=true
+OAUTH2_PROXY_COOKIE_SECURE=true
 ```
 
-The library sync includes `brand-guidelines/*.md` (the Voice & Tone visual docs) and `brand-guideline/whoweare.html` (the identity embed source). **Restart the studio service** after the first sync so the identity embed builds.
+`studio-internal` is the private-network alias for the Studio resource. Attach `https://studio.freshcontext.ai` only to the OAuth proxy resource on port `4180`; do not expose Studio directly.
 
-## Phase V - Verify (in order)
+The skip list is intentional: the app, not Google, validates the bearer on `/api` and `/mcp`. The `/mcp` handler ignores forwarded-email headers and browser cookies.
 
-1. `curl https://studio.freshcontext.ai/healthz` → `{ok:true}` (no auth - proves DNS + TLS + skip-route).
-2. Browser → `https://studio.freshcontext.ai` → Google login → Identity page. Incognito with a non-`@freshcontext.ai` account must be refused.
-3. `curl -H "Authorization: Bearer $PROD_TOKEN" https://studio.freshcontext.ai/api/status` → counts. Without the header → **401**.
-4. `curl -H "Authorization: Bearer $PROD_TOKEN" https://studio.freshcontext.ai/api/brand/ambient` → the 19-rule fragment (the cloud-agent door).
-5. Generate one image via the UI → confirm it lands in the gallery (proves volume writes + OpenAI).
+## Seed persistent storage
 
-## Phase VI - Repoint the consumers
+Copy the existing library and approved references/generated outputs into the mounted volume using the Coolify/VPS operator workflow. Do not put production output or credentials in git. Restart Studio after the first library sync.
 
-- **`.mcp.json`** (`fresh-context-studio` server env): `STUDIO_API_URL=https://studio.freshcontext.ai` + the prod bearer. *Choice:* keep local sessions on `localhost:3440` for dev and use the prod URL only where localhost is unreachable (claude.ai cloud) - or cut everything over. Lean: cut over; localhost stays a dev override.
-- **`/studio` skill** (`.claude/skills/studio.md`): repoint base URL the same way.
-- **`/brand-sync`**: no change (it reads `STUDIO_API_URL` from `apps/studio/.env` - update that when cutting over).
+## Verification order
 
-## Known caveats
+```bash
+curl -fsS https://studio.freshcontext.ai/healthz
+curl -i https://studio.freshcontext.ai/mcp \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"auth-check","version":"1"}}}'
+```
 
-- `/files/*` sits behind Google - correct for humans; MCP-returned file URLs open fine in a logged-in browser but are not headlessly fetchable. If that ever bites, add bearer-accept on `/files`.
-- oauth2-proxy pinned `v7.6.0`; bump deliberately.
-- The old deploy sketch in `STUDIO-IMAGE-BACKLOG.md` Tier 2 is history; this file is the procedure.
+The first command is `200`. The second is deterministic `401` with `WWW-Authenticate: Bearer` and no `Location` header.
+
+With the provisioned credential, run:
+
+```bash
+curl -fsS -H "Authorization: Bearer ${STUDIO_BEARER_TOKEN}" https://studio.freshcontext.ai/api/status
+STUDIO_API_URL=https://studio.freshcontext.ai npm run mcp:hosted-smoke
+```
+
+The hosted smoke is read-only. It verifies initialize, `tools/list`, image-tool resolution, asset search, brand context, asset retrieval, invalid-auth behavior, no Google redirect, no bearer leakage, and no internal filesystem paths. Run the paid generation canary separately and manually only after this passes.
+
+## Consumer setup
+
+Local Claude Code uses `brand-studio/mcp/server.js` over stdio with environment references. Hosted Claude Code or another MCP client uses `POST https://studio.freshcontext.ai/mcp` with `Authorization: Bearer ${STUDIO_BEARER_TOKEN}`. Both expose the same twelve tool names and schemas.
+
+The default test suite is mocked/no-spend. `npm run mcp:smoke` and `npm run mcp:hosted-smoke` are explicit read-only checks; neither calls `studio_generate_image`.

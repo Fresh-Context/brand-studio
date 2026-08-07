@@ -1,5 +1,5 @@
 # Fresh Context Studio — production image (Coolify service).
-# Build context: apps/studio (small; the asset library is a volume, not baked in).
+# Build context: brand-studio (small; the asset library is a volume, not baked in).
 FROM node:22-alpine
 
 WORKDIR /app

@@ -1,4 +1,4 @@
-// Foreground replica of apps/studio executors/image.js for the Growth & Form tool.
+// Foreground helper for the standalone brand-studio image executor.
 // Runs in a foreground shell (has network egress, unlike Bash-launched daemons).
 // Replicates: prepend tool.system_prompt, POST /v1/images/edits with the tool's
 // reference exemplars, save b64 PNGs to the generated dir.
@@ -6,10 +6,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 
-const APP = '/Users/samgong/fresh-context/apps/studio';
-const REF_DIR = path.resolve(APP, '../../local-server/studio/references');
-const GEN_DIR = path.resolve(APP, '../../local-server/studio/generated');
+const APP = path.resolve(fileURLToPath(new URL('../..', import.meta.url)));
+const REF_DIR = path.resolve(APP, 'data/references');
+const GEN_DIR = path.resolve(APP, 'data/generated');
 const TOOL_ID = '3012f59d-e753-4551-ad38-0b94ea659006';
 const MODEL = 'gpt-image-2';
 const SIZE = '1024x1024';
