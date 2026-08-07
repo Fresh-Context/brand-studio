@@ -1,13 +1,17 @@
-# Fresh Context Studio — Coolify stack: the app + oauth2-proxy in front.
+# Fresh Context Studio — reference Coolify stack: standalone Studio app plus
+# a separate oauth2-proxy resource in front of the human browser door.
 #
-# Topology (two doors, one API — see STUDIO-PRD.md):
+# Topology:
 #   internet → Coolify proxy (TLS, studio.freshcontext.ai) → oauth2-proxy:4180
-#     ├─ UI + /files/*  → Google OAuth, @freshcontext.ai only → studio:3440
-#     └─ /api/* + /healthz → skip OAuth, pass through → studio:3440 (bearer
-#        enforced by the app itself — the machine/MCP door)
+#     ├─ UI + /files/* → Google OAuth, @freshcontext.ai only → studio:3440
+#     ├─ /api/*         → studio:3440, app bearer policy (machine/API door)
+#     ├─ /mcp*          → studio:3440, app Authorization: Bearer policy
+#     └─ /healthz       → studio:3440, public liveness only
 #
-# The studio container is NOT exposed publicly; only oauth2-proxy gets the domain.
-# Secrets (${...}) are set in the Coolify resource's Environment Variables.
+# The studio container is not exposed publicly. In production the oauth2-proxy
+# may be a separate Coolify resource attached to the same private network; this
+# compose file remains a reproducible local/reference topology. Secrets are
+# supplied by Coolify environment variables or an untracked local .env file.
 
 services:
   studio:
@@ -19,7 +23,9 @@ services:
       - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - STUDIO_BEARER_TOKEN=${STUDIO_BEARER_TOKEN}
+      - STUDIO_DOWNLOAD_SIGNING_SECRET=${STUDIO_DOWNLOAD_SIGNING_SECRET:-}
       - STUDIO_API_URL=https://studio.freshcontext.ai
+      - STUDIO_MCP_REQUEST_TIMEOUT_MS=180000
       - STUDIO_GENERATED_DIR=/data/generated
       - STUDIO_REFERENCES_DIR=/data/references
       - STUDIO_LIBRARY_DIR=/data/library
@@ -45,8 +51,9 @@ services:
       - OAUTH2_PROXY_REDIRECT_URL=https://studio.freshcontext.ai/oauth2/callback
       - OAUTH2_PROXY_UPSTREAMS=http://studio:3440
       - OAUTH2_PROXY_HTTP_ADDRESS=0.0.0.0:4180
-      # The machine door: /api/* is bearer-gated by the app, /healthz is public.
-      - OAUTH2_PROXY_SKIP_AUTH_ROUTES=^/api/,^/healthz
+      # Machine routes are passed to Studio, which enforces bearer auth itself.
+      - OAUTH2_PROXY_SKIP_AUTH_ROUTES=^/(?:api/|mcp(?:/|$)|healthz$)
+      - OAUTH2_PROXY_UPSTREAM_TIMEOUT=180s
       - OAUTH2_PROXY_COOKIE_SECURE=true
       - OAUTH2_PROXY_REVERSE_PROXY=true
       - OAUTH2_PROXY_SKIP_PROVIDER_BUTTON=true

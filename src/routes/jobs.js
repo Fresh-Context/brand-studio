@@ -1,29 +1,11 @@
 'use strict';
 
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
 const db = require('../db');
-const { dirs } = require('../lib/storage');
-const { buildStoredZip } = require('../lib/zip');
+const { buildJobArchive, getJobDownloadMetadata } = require('../lib/downloads');
+const { createDownloadUrl, signingSecretFromEnv } = require('../lib/signed-links');
 
 const r = express.Router();
-
-function slugify(name) {
-  return (name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'studio';
-}
-
-// Resolve a job result path (e.g. "generated/<jobId>_0.png") against the
-// generated root with the same containment guarantee /files/generated
-// (express.static) gives — a path escaping the root is rejected rather than
-// read.
-function resolveGeneratedResult(relpath) {
-  const root = dirs().generated;
-  const rest = relpath.startsWith('generated/') ? relpath.slice('generated/'.length) : relpath;
-  const abs = path.resolve(root, rest);
-  if (abs !== root && !abs.startsWith(root + path.sep)) return null;
-  return abs;
-}
 
 r.get('/', async (req, res) => {
   try {
@@ -45,39 +27,53 @@ r.post('/:id/star', async (req, res) => {
   catch (e) { res.status(400).json({ error: e.message }); }
 });
 
-// GET /api/jobs/:id/download — stream a job's results as one .zip attachment.
-// Complements /files/generated (one file, inline): the UI's "Download all"
-// hits this so a multi-variant job is one click instead of N. Every result
-// path is re-validated through resolveGeneratedResult exactly as /files/generated
-// is, so a path escaping the generated root — or one missing on disk — is
-// skipped rather than served; a job with no readable results is a 404. The
-// archive is built in memory: fine for the <= 10 variants a job ever holds.
+// GET /api/jobs/:id/download-metadata — no binary payload; used by MCP to
+// validate availability and return archive metadata alongside a signed link.
+r.get('/:id/download-metadata', async (req, res) => {
+  try {
+    const metadata = await getJobDownloadMetadata(req.params.id);
+    if (!metadata) return res.status(404).json({ error: 'Not found' });
+    if (!metadata.available) return res.json({ id: req.params.id, available: false, filename: null, content_type: 'application/zip', byte_size: null, output_count: 0 });
+    res.json({
+      id: req.params.id,
+      available: true,
+      filename: metadata.filename,
+      content_type: metadata.content_type,
+      byte_size: metadata.byte_size,
+      output_count: metadata.output_count,
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/jobs/:id/download — authenticated direct API archive for clients
+// that already have the bearer token. MCP prefers the signed /mcp/download URL.
 r.get('/:id/download', async (req, res) => {
   try {
-    const job = await db.getJob(req.params.id);
-    if (!job) return res.status(404).json({ error: 'Not found' });
-
-    const tool = job.tool_id ? await db.getTool(job.tool_id).catch(() => null) : null;
-    const slug = slugify(tool && tool.name);
-
-    const entries = [];
-    (job.result_paths || []).forEach((relpath, index) => {
-      const abs = resolveGeneratedResult(relpath);
-      if (!abs || !fs.existsSync(abs) || !fs.statSync(abs).isFile()) return;
-      const ext = path.extname(abs) || '.png';
-      entries.push({ name: `${slug}-${index + 1}${ext}`, data: fs.readFileSync(abs) });
-    });
-
-    if (entries.length === 0) return res.status(404).json({ error: 'No result files available' });
-
-    const zipBuffer = buildStoredZip(entries);
-    const filename = `${slug}-${String(job.id).slice(0, 8)}.zip`;
+    const archive = await buildJobArchive(req.params.id);
+    if (!archive) return res.status(404).json({ error: 'Not found' });
+    if (!archive.available) return res.status(404).json({ error: 'No result files available' });
     res.set({
-      'Content-Type': 'application/zip',
-      'Content-Disposition': `attachment; filename="${filename}"`,
-      'Content-Length': String(zipBuffer.length),
+      'Content-Type': archive.content_type,
+      'Content-Disposition': `attachment; filename="${archive.filename}"`,
+      'Content-Length': String(archive.buffer.length),
     });
-    res.send(zipBuffer);
+    res.send(archive.buffer);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Machine clients may use this endpoint to obtain a short-lived archive link
+// without knowing the signing secret. The MCP adapter currently signs locally
+// with the same provisioned secret, but this endpoint keeps the service contract
+// available to future hosted clients.
+r.get('/:id/download-link', async (req, res) => {
+  try {
+    const metadata = await getJobDownloadMetadata(req.params.id);
+    if (!metadata) return res.status(404).json({ error: 'Not found' });
+    if (!metadata.available) return res.status(404).json({ error: 'No result files available' });
+    const secret = signingSecretFromEnv();
+    if (!secret) return res.status(503).json({ error: 'Signed downloads are not configured' });
+    const link = createDownloadUrl({ baseUrl: `${req.protocol}://${req.get('host')}`, kind: 'job', id: req.params.id, secret, ttlSeconds: 300 });
+    res.json({ ...link, filename: metadata.filename, content_type: metadata.content_type, byte_size: metadata.byte_size });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

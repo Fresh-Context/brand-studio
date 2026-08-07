@@ -1,7 +1,7 @@
 // Register the "Growth & Form — Circumscribed Specimen" shot type via the app's
 // own Supabase data layer (createTool). Run foreground (has egress to Supabase).
 import { createRequire } from 'node:module';
-const require = createRequire('/Users/samgong/fresh-context/apps/studio/');
+const require = createRequire(new URL('../../package.json', import.meta.url));
 const db = require('./src/db');
 
 const SYSTEM_PROMPT = [

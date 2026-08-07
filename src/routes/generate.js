@@ -79,21 +79,22 @@ r.post('/', acceptUpload, async (req, res) => {
       const { result_paths } = await image.generate({
         tool, prompt, aspect: aspectR, variants: nVariants, jobId, userImagePath: userImageAbsPath,
       });
-      const job = await db.completeJob(jobId, { resultPaths: result_paths });
-      // Catalog each output immediately (browse/recency) — the indexer enriches it
-      // with caption + tags + embedding on its next run (best-effort; don't fail the
-      // generation if cataloging hiccups).
-      await Promise.all((result_paths || []).map((rp) =>
+      // Catalog each output immediately (browse/recency). Keep the generated
+      // asset IDs on the persisted job so both MCP transports can return a
+      // retrievable structured result without guessing from a path.
+      const cataloged = await Promise.all((result_paths || []).map((rp) =>
         db.upsertAsset({
           source: 'generated', kind: 'image', storage_path: rp,
           title: `${tool.name} — ${prompt.slice(0, 40)}`,
           provenance: {
-            tool_id, tool: tool.name, prompt, job_id: jobId, date: job.created_at,
+            tool_id, tool: tool.name, prompt, job_id: jobId, date: new Date().toISOString(),
             ...(userImageRelPath ? { input_path: userImageRelPath } : {}),
           },
           job_id: jobId, mime: 'image/png',
         }).catch(() => null)
       ));
+      const assetIds = cataloged.filter(Boolean).map((asset) => asset.id);
+      const job = await db.completeJob(jobId, { resultPaths: result_paths, result: { asset_ids: assetIds } });
       res.json(job);
     } catch (err) {
       await db.completeJob(jobId, { resultPaths: [], error: err.message });

@@ -4,7 +4,7 @@
 // outputs into studio_assets + studio_asset_embeddings. Incremental (skips files
 // whose content_hash is unchanged). Modeled on local-server/rag/vault-indexer.js.
 //
-//   cd apps/studio
+//   cd brand-studio
 //   node scripts/index-assets.js --sample 10        # validate on a small mix
 //   node scripts/index-assets.js                     # full run (all sources)
 //   node scripts/index-assets.js --source library    # one source
